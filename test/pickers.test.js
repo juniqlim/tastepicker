@@ -23,6 +23,8 @@ test('정직한 청년 - 지역과 가게명과 한줄평을 나눈다', () => {
     name: '억떡볶이',
     note: '추억은 현재진행듕',
     rating: null,
+    level: null,
+    levelBy: null,
     link: 'https://blog.naver.com/thddbcjf/224355010343',
   })
 })
@@ -49,6 +51,8 @@ test('RockHer - 지역과 가게명과 등급을 나눈다', () => {
     name: '하가원',
     note: '해운대 장산 콩국수 메뉴 점심 웨이팅 등',
     rating: '추천',
+    level: 4,
+    levelBy: '픽커',
     link: 'https://blog.naver.com/fascinoya/224354139472',
   })
 })
@@ -70,6 +74,29 @@ test('RockHer - 강추와 추천을 구분한다', () => {
 })
 
 const rockher = () => PICKERS.find((p) => p.id === 'fascinoya')
+
+test('RockHer - 본인 등급을 5점 자로 옮긴다', () => {
+  const level = (grade) => rockher().read({ title: `[안양 맛집] 집 (${grade})` }).level
+
+  assert.deepEqual(
+    ['강추', '추천', '괜춘', '쏘쏘', '보통', '그닥', '별로'].map(level),
+    [5, 4, 3, 3, 3, 2, 1],
+  )
+})
+
+test('RockHer - 등급을 옮긴 것임을 남긴다', () => {
+  const pick = rockher().read({ title: '[안양 맛집] 집 (강추)' })
+
+  assert.equal(pick.levelBy, '픽커')
+})
+
+test('정직한 청년 - 등급을 안 매기니 비워둔다', () => {
+  const pick = PICKERS.find((p) => p.id === 'thddbcjf').read({ title: '안양 호계동 장수옥-뽀얀 걸로' })
+
+  assert.equal(pick.rating, null)
+  assert.equal(pick.level, null)
+  assert.equal(pick.levelBy, null)
+})
 
 test('RockHer - 한 글에 여러 가게를 쓰면 첫 가게만 받는다', () => {
   const pick = rockher().read({

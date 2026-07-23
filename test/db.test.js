@@ -9,6 +9,8 @@ const 억떡볶이 = {
   name: '억떡볶이',
   note: '추억은 현재진행듕',
   rating: null,
+  level: null,
+  levelBy: null,
   link: 'https://blog.naver.com/thddbcjf/224355010343',
   place: {
     placeId: '1209575927',

@@ -17,9 +17,18 @@ const SCHEMA = `
   )
 `
 
+/** 컬럼이 늘어도 모아둔 데이터를 버리지 않는다. */
+const LATER = { level: 'INTEGER', level_by: 'TEXT' }
+
 export function openDb(path) {
   const db = new DatabaseSync(path)
   db.exec(SCHEMA)
+
+  const has = new Set(db.prepare('PRAGMA table_info(pick)').all().map((column) => column.name))
+  for (const [column, type] of Object.entries(LATER)) {
+    if (!has.has(column)) db.exec(`ALTER TABLE pick ADD COLUMN ${column} ${type}`)
+  }
+
   return db
 }
 
@@ -27,16 +36,18 @@ export function openDb(path) {
 export function savePick(db, pick) {
   const place = pick.place ?? {}
   db.prepare(
-    `INSERT INTO pick (link, picker, region, name, note, rating,
+    `INSERT INTO pick (link, picker, region, name, note, rating, level, level_by,
                        place_id, place_name, address, lat, lng, tel)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(link) DO UPDATE SET
        picker = excluded.picker, region = excluded.region, name = excluded.name,
        note = excluded.note, rating = excluded.rating,
+       level = excluded.level, level_by = excluded.level_by,
        place_id = excluded.place_id, place_name = excluded.place_name,
        address = excluded.address, lat = excluded.lat, lng = excluded.lng, tel = excluded.tel`,
   ).run(
     pick.link, pick.picker, pick.region, pick.name, pick.note, pick.rating,
+    pick.level ?? null, pick.levelBy ?? null,
     place.placeId ?? null, place.name ?? null, place.address ?? null,
     place.lat ?? null, place.lng ?? null, place.tel ?? null,
   )
@@ -79,6 +90,8 @@ export function allPicks(db) {
     name: row.name,
     note: row.note,
     rating: row.rating,
+    level: row.level,
+    levelBy: row.level_by,
     link: row.link,
     place: row.place_id === null ? null : {
       placeId: row.place_id,
