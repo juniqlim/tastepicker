@@ -24,6 +24,12 @@ const GRADES = Object.keys(LEVELS)
  */
 export const PICKERS = [
   {
+    id: 'juniqlim',
+    name: 'juniqlim',
+    // 블로그가 없다. 긁어올 글이 없고 data/juniqlim.json 에 직접 적는다.
+    mine: 'juniqlim.json',
+  },
+  {
     id: 'thddbcjf',
     name: '정직한 청년',
     url: 'https://blog.naver.com/thddbcjf',

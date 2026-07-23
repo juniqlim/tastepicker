@@ -27,7 +27,7 @@ test('픽을 넣고 그대로 꺼낸다', () => {
 
   savePick(db, 억떡볶이)
 
-  assert.deepEqual(allPicks(db), [억떡볶이])
+  assert.deepEqual(allPicks(db), [{ ...억떡볶이, id: 억떡볶이.link, visited: null }])
 })
 
 test('장소가 없는 픽도 넣는다', () => {
@@ -38,7 +38,7 @@ test('장소가 없는 픽도 넣는다', () => {
   assert.equal(allPicks(db)[0].place, null)
 })
 
-test('같은 글을 다시 넣으면 갱신한다', () => {
+test('같은 방문을 다시 넣으면 갱신한다', () => {
   const db = openDb(':memory:')
 
   savePick(db, 억떡볶이)

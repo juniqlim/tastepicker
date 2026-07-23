@@ -1,15 +1,28 @@
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS, collect } from '../src/pickers.js'
 import { fetchAllPosts, fetchPost } from '../src/naver.js'
 import { parsePlace } from '../src/place.js'
+import { myPicks } from '../src/mine.js'
 import { openDb, savePick, placeOf, dropOthers } from '../src/db.js'
 
+const data = join(import.meta.dirname, '../data')
 const show = (text) => process.stdout.write(`\r\x1b[K${text}`)
 
-const db = openDb(join(import.meta.dirname, '../data/picks.db'))
+const db = openDb(join(data, 'picks.db'))
 
-for (const picker of PICKERS) {
+// 블로그 픽커를 먼저 훑는다. 내 평가는 그들이 다녀간 가게에 붙는다.
+for (const picker of PICKERS.filter((picker) => picker.mine)) {
+  const mine = JSON.parse(readFileSync(join(data, picker.mine), 'utf-8'))
+  const picks = myPicks(db, mine)
+
+  for (const pick of picks) savePick(db, pick)
+  dropOthers(db, picker.id, picks.map((pick) => pick.link))
+  console.log(`${picker.name} 평가 ${mine.length}줄 → 픽 ${picks.length}개`)
+}
+
+for (const picker of PICKERS.filter((picker) => picker.read)) {
   const posts = await fetchAllPosts(picker.id, (read, total) =>
     show(`${picker.name} 목록 ${read}/${total}`),
   )

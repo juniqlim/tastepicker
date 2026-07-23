@@ -8,10 +8,24 @@ const db = openDb(join(import.meta.dirname, '../data/picks.db'))
 const picks = allPicks(db).filter((pick) => pick.place)
 
 /**
+ * 핀 하나는 가게 하나다. 픽 하나가 아니다.
+ * 한 가게를 여러 픽커가, 또 같은 픽커가 여러 번 쓰기 때문에
+ * 픽마다 핀을 찍으면 같은 자리에 겹쳐서 하나만 눌린다.
+ */
+const places = new Map()
+for (const pick of picks) {
+  const place = places.get(pick.place.placeId) ?? { ...pick.place, picks: [] }
+  place.picks.push(pick)
+  places.set(pick.place.placeId, place)
+}
+
+const spots = [...places.values()]
+
+/**
  * 등급은 픽커마다 다르다. RockHer는 아홉 단계를 쓰고 정직한 청년은 매기지 않는다.
  * 그래서 색은 모든 픽이 가진 픽커로 나누고, 등급은 진하기로만 보인다.
  */
-const COLORS = ['#e8590c', '#1971c2']
+const COLORS = ['#d6336c', '#e8590c', '#1971c2', '#2f9e44', '#7048e8', '#0c8599']
 
 const BANDS = [
   { key: 'best', label: '강추', fade: 1, grades: ['강추'] },
@@ -27,8 +41,11 @@ const bandOf = Object.fromEntries(
 const fadeOf = Object.fromEntries(BANDS.map((band) => [band.key, band.fade]))
 const layerOf = (pick) => `${pick.picker}:${bandOf[pick.rating] ?? 'plain'}`
 
+// 범례 숫자는 가게 수로 센다. 재방문이 많다고 많아 보이면 안 된다.
 const counts = {}
-for (const pick of picks) counts[layerOf(pick)] = (counts[layerOf(pick)] ?? 0) + 1
+for (const spot of spots) {
+  for (const key of new Set(spot.picks.map(layerOf))) counts[key] = (counts[key] ?? 0) + 1
+}
 
 const legend = PICKERS.map((picker, index) => {
   const boxes = BANDS.filter((band) => counts[`${picker.id}:${band.key}`])
@@ -39,8 +56,14 @@ const legend = PICKERS.map((picker, index) => {
     })
     .join('')
 
-  return `<div class="row"><b style="color:${COLORS[index % COLORS.length]}">●</b>
-    <a href="${picker.url}" target="_blank">${picker.name}</a> ${boxes}</div>`
+  if (!boxes) return ''
+
+  // 블로그가 없는 픽커는 걸 링크가 없다.
+  const who = picker.url
+    ? `<a href="${picker.url}" target="_blank">${picker.name}</a>`
+    : `<a>${picker.name}</a>`
+
+  return `<div class="row"><b style="color:${COLORS[index % COLORS.length]}">●</b> ${who} ${boxes}</div>`
 }).join('')
 
 const html = `<!doctype html>
@@ -58,8 +81,12 @@ const html = `<!doctype html>
   #bar label { white-space:nowrap; cursor:pointer; color:#495057 }
   #bar span { color:#adb5bd }
   #who { margin-top:4px; color:#868e96; font-size:12px }
+  .pop { max-height:280px; overflow-y:auto }
   .pop b { font-size:15px }
-  .pop .note { color:#495057 }
+  .pop ul { margin:8px 0; padding-left:16px }
+  .pop li { margin-bottom:6px; color:#495057 }
+  .pop i { color:#adb5bd; font-style:normal; font-size:12px }
+  .pop em { color:#1971c2; font-style:normal; font-weight:600 }
   .pop .addr { color:#868e96; font-size:12px }
 </style>
 <div id="bar">
@@ -69,7 +96,7 @@ const html = `<!doctype html>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const picks = ${JSON.stringify(picks)}
+const spots = ${JSON.stringify(spots)}
 const bandOf = ${JSON.stringify(bandOf)}
 const fadeOf = ${JSON.stringify(fadeOf)}
 const colorOf = ${JSON.stringify(Object.fromEntries(PICKERS.map((p, i) => [p.id, COLORS[i % COLORS.length]])))}
@@ -81,21 +108,31 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map)
 
 const layers = {}
-for (const pick of picks) {
-  const band = bandOf[pick.rating] || 'plain'
-  const marker = L.circleMarker([pick.place.lat, pick.place.lng], {
-    radius: 6, weight: 1.5, color: '#fff',
-    fillColor: colorOf[pick.picker], fillOpacity: fadeOf[band]
-  }).bindPopup(
-    '<div class="pop"><b>' + pick.name + '</b>' + (pick.rating ? ' · ' + pick.rating : '') +
-    '<br><span class="note">' + pick.note + '</span>' +
-    '<br><span class="addr">' + (pick.place.address || '') + '</span><br><br>' +
-    pickerName[pick.picker] + ' — ' +
-    '<a href="' + pick.link + '" target="_blank">원문</a> · ' +
-    '<a href="https://map.naver.com/p/entry/place/' + pick.place.placeId + '" target="_blank">네이버 지도</a></div>'
-  )
-  const key = pick.picker + ':' + band
-  ;(layers[key] ||= L.layerGroup().addTo(map)).addLayer(marker)
+const review = pick =>
+  '<li><b>' + pickerName[pick.picker] + '</b>' +
+  (pick.visited ? ' <i>' + pick.visited + '</i>' : '') +
+  (pick.rating ? ' <em>' + pick.rating + '</em>' : '') +
+  '<br>' + (pick.note || '') +
+  (pick.link ? ' <a href="' + pick.link + '" target="_blank">원문</a>' : '') + '</li>'
+
+for (const spot of spots) {
+  // 가게 이름은 픽커의 표기가 아니라 네이버 상호로 통일한다.
+  // 픽커마다 다르게 적어서 같은 집이 여러 곳처럼 보인다.
+  const popup =
+    '<div class="pop"><b>' + (spot.name || spot.picks[0].name) + '</b>' +
+    '<br><span class="addr">' + (spot.address || '') + '</span>' +
+    '<ul>' + spot.picks.map(review).join('') + '</ul>' +
+    '<a href="https://map.naver.com/p/entry/place/' + spot.placeId + '" target="_blank">네이버 지도</a></div>'
+
+  // 한 가게를 여러 픽커가 쓰면 마커도 그만큼 겹쳐 둔다. 필터를 켜고 끌 수 있어야 한다.
+  for (const band of new Set(spot.picks.map(p => p.picker + ':' + (bandOf[p.rating] || 'plain')))) {
+    const [picker, level] = band.split(':')
+    const marker = L.circleMarker([spot.lat, spot.lng], {
+      radius: 6, weight: 1.5, color: '#fff',
+      fillColor: colorOf[picker], fillOpacity: fadeOf[level]
+    }).bindPopup(popup)
+    ;(layers[band] ||= L.layerGroup().addTo(map)).addLayer(marker)
+  }
 }
 
 for (const box of document.querySelectorAll('#bar input')) {
@@ -106,11 +143,11 @@ for (const box of document.querySelectorAll('#bar input')) {
 }
 
 // 해외 픽이 섞여 있어 전체로 맞추면 세계 지도가 된다. 국내 픽 기준으로 연다.
-const home = picks
-  .map(p => [p.place.lat, p.place.lng])
+const home = spots
+  .map(s => [s.lat, s.lng])
   .filter(([lat, lng]) => lat > 33 && lat < 39 && lng > 124 && lng < 132)
 
-map.fitBounds(home.length ? home : picks.map(p => [p.place.lat, p.place.lng]), { padding: [40, 40] })
+map.fitBounds(home.length ? home : spots.map(s => [s.lat, s.lng]), { padding: [40, 40] })
 </script>
 `
 
@@ -119,4 +156,4 @@ mkdirSync(site, { recursive: true })
 
 const path = join(site, 'index.html')
 writeFileSync(path, html)
-console.log(`픽 ${picks.length}개 → ${path}`)
+console.log(`가게 ${spots.length}곳, 픽 ${picks.length}개 → ${path}`)
