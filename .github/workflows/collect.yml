@@ -1,0 +1,32 @@
+name: 새 글 수집
+
+on:
+  schedule:
+    - cron: '0 20 * * *' # 매일 05:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run build
+
+      # 새 글이 없으면 커밋도 배포도 하지 않는다.
+      - name: 새 글을 남긴다
+        run: |
+          git config user.name 'tastepicker'
+          git config user.email 'noreply@github.com'
+          git add data/picks.db
+          git diff --cached --quiet && echo '새 글 없음' && exit 0
+          git commit -m "새 글을 모은다 ($(date -u -d '9 hours' +%Y-%m-%d))"
+          git push
