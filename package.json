@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node bin/picks.js",
+    "build": "node bin/build.js",
     "test": "node --test test/*.test.js"
   }
 }
