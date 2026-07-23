@@ -1,3 +1,6 @@
+/** RockHer가 쓰는 등급. 좋은 순. 나쁜 평가도 픽커의 판단이라 함께 받는다. */
+export const GRADES = ['강추', '추천', '괜춘', '쏘쏘', '보통', '평범', '무난', '그닥', '별로']
+
 /**
  * 픽커는 내가 검증해서 직접 등록한 사람만 들어온다.
  * 서비스가 자동으로 추가하지 않는다.
@@ -28,8 +31,11 @@ export const PICKERS = [
     url: 'https://blog.naver.com/fascinoya',
     // '[부산 맛집] 하가원 (추천) - 해운대 장산 콩국수 메뉴 점심 웨이팅 등'
     // 본인이 등급을 붙인 글만 받는다. 안 붙인 글은 추천으로 볼 근거가 없다.
+    // 한 글에 여러 가게를 쓰기도 해서 첫 등급 앞까지를 가게명으로 본다.
     read({ title }) {
-      const found = title.match(/^\[(\S+)\s*(?:맛집|카페)\]\s*(.+?)\s*\((강추|추천)\)\s*[-–]?\s*(.*)$/)
+      const found = title.match(
+        new RegExp(`^\\[(\\S+)\\s*(?:맛집|카페)\\]\\s*(.+?)\\s*\\((${GRADES.join('|')})\\)\\s*[-–]?\\s*(.*)$`),
+      )
       if (!found) return null
 
       const [, region, name, rating, note] = found

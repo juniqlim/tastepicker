@@ -47,6 +47,31 @@ export function savedLinks(db) {
   return new Set(db.prepare('SELECT link FROM pick').all().map((row) => row.link))
 }
 
+/** 이미 받아둔 장소. 규칙을 고쳐 다시 해석할 때 본문을 또 받지 않으려고 쓴다. */
+export function placeOf(db, link) {
+  const row = db
+    .prepare('SELECT place_id, place_name, address, lat, lng, tel FROM pick WHERE link = ?')
+    .get(link)
+  if (!row || row.place_id === null) return undefined
+
+  return {
+    placeId: row.place_id,
+    name: row.place_name,
+    address: row.address,
+    lat: row.lat,
+    lng: row.lng,
+    tel: row.tel,
+  }
+}
+
+/** 규칙이 바뀌어 더는 픽이 아닌 글을 지운다. */
+export function dropOthers(db, picker, links) {
+  const keep = new Set(links)
+  for (const { link } of db.prepare('SELECT link FROM pick WHERE picker = ?').all(picker)) {
+    if (!keep.has(link)) db.prepare('DELETE FROM pick WHERE link = ?').run(link)
+  }
+}
+
 export function allPicks(db) {
   return db.prepare('SELECT * FROM pick').all().map((row) => ({
     picker: row.picker,

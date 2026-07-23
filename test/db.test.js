@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { openDb, savePick, savedLinks, allPicks } from '../src/db.js'
+import { openDb, savePick, savedLinks, allPicks, placeOf, dropOthers } from '../src/db.js'
 
 const 억떡볶이 = {
   picker: 'thddbcjf',
@@ -53,4 +53,29 @@ test('이미 넣은 글을 알려준다', () => {
 
   assert.ok(savedLinks(db).has(억떡볶이.link))
   assert.ok(!savedLinks(db).has('https://blog.naver.com/thddbcjf/1'))
+})
+
+test('받아둔 장소를 꺼낸다', () => {
+  const db = openDb(':memory:')
+
+  savePick(db, 억떡볶이)
+
+  assert.deepEqual(placeOf(db, 억떡볶이.link), 억떡볶이.place)
+  assert.equal(placeOf(db, 'https://blog.naver.com/thddbcjf/1'), undefined)
+})
+
+test('규칙에서 빠진 글은 지운다', () => {
+  const db = openDb(':memory:')
+  const 옛픽 = { ...억떡볶이, link: 'https://blog.naver.com/thddbcjf/1' }
+  const 남픽 = { ...억떡볶이, picker: 'fascinoya', link: 'https://blog.naver.com/fascinoya/1' }
+
+  savePick(db, 억떡볶이)
+  savePick(db, 옛픽)
+  savePick(db, 남픽)
+  dropOthers(db, 'thddbcjf', [억떡볶이.link])
+
+  assert.deepEqual(
+    allPicks(db).map((pick) => pick.link).sort(),
+    [남픽.link, 억떡볶이.link].sort(),
+  )
 })

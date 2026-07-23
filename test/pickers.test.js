@@ -69,6 +69,31 @@ test('RockHer - 강추와 추천을 구분한다', () => {
   assert.equal(byName(picks, '부산애').rating, '추천')
 })
 
+const rockher = () => PICKERS.find((p) => p.id === 'fascinoya')
+
+test('RockHer - 한 글에 여러 가게를 쓰면 첫 가게만 받는다', () => {
+  const pick = rockher().read({
+    title: '[삼각지 카페] 스쿠퍼젤라또 (괜춘) - 아포가토 / 에피하우스 (추천)',
+  })
+
+  assert.equal(pick.name, '스쿠퍼젤라또')
+  assert.equal(pick.rating, '괜춘')
+})
+
+test('RockHer - 나쁜 평가도 받는다', () => {
+  const pick = rockher().read({ title: '[홍대 맛집] 천지마라탕 (별로) - 히밥이 다녀간 집' })
+
+  assert.equal(pick.name, '천지마라탕')
+  assert.equal(pick.rating, '별로')
+})
+
+test('RockHer - 등급이 아닌 괄호는 이름에 남긴다', () => {
+  const pick = rockher().read({ title: '[이태원 맛집] 난 (Naan) (강추) - 인도 커리' })
+
+  assert.equal(pick.name, '난 (Naan)')
+  assert.equal(pick.rating, '강추')
+})
+
 test('RockHer - 등급을 안 붙인 글은 거른다', () => {
   const picks = picksOf('fascinoya')
 
