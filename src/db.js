@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 
 /**
@@ -135,4 +136,13 @@ export function allPicks(db) {
       tel: row.tel,
     },
   }))
+}
+
+/**
+ * 담긴 픽의 지문. 새 글이 있는지 이걸로 본다.
+ * SQLite 파일은 내용이 같아도 바이트가 달라져서 파일로는 알 수 없다.
+ */
+export function digest(db) {
+  const picks = allPicks(db).sort((one, other) => (one.id < other.id ? -1 : 1))
+  return createHash('sha256').update(JSON.stringify(picks)).digest('hex')
 }

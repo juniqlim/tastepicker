@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { openDb, savePick, savedLinks, allPicks, placeOf, dropOthers } from '../src/db.js'
+import { openDb, savePick, savedLinks, allPicks, placeOf, dropOthers, digest } from '../src/db.js'
 
 const 억떡볶이 = {
   picker: 'thddbcjf',
@@ -80,4 +80,27 @@ test('규칙에서 빠진 글은 지운다', () => {
     allPicks(db).map((pick) => pick.link).sort(),
     [남픽.link, 억떡볶이.link].sort(),
   )
+})
+
+test('내용이 같으면 지문도 같다', () => {
+  const 하나 = openDb(':memory:')
+  const 둘 = openDb(':memory:')
+  const 다른픽 = { ...억떡볶이, link: 'https://blog.naver.com/thddbcjf/1' }
+
+  savePick(하나, 억떡볶이)
+  savePick(하나, 다른픽)
+  savePick(둘, 다른픽)
+  savePick(둘, 억떡볶이)
+
+  assert.equal(digest(하나), digest(둘))
+})
+
+test('픽이 바뀌면 지문도 바뀐다', () => {
+  const db = openDb(':memory:')
+  savePick(db, 억떡볶이)
+  const 처음 = digest(db)
+
+  savePick(db, { ...억떡볶이, note: '고친 한줄평' })
+
+  assert.notEqual(digest(db), 처음)
 })

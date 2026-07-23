@@ -21,12 +21,12 @@ jobs:
           node-version: 24
       - run: npm run build
 
-      # 새 글이 없으면 커밋도 배포도 하지 않는다.
+      # SQLite 파일은 내용이 같아도 바이트가 달라져서 지문으로 본다.
       - name: 새 글을 남긴다
         run: |
           git config user.name 'tastepicker'
           git config user.email 'noreply@github.com'
-          git add data/picks.db
-          git diff --cached --quiet && echo '새 글 없음' && exit 0
+          git add data/picks.db data/picks.sha
+          git diff --cached --quiet -- data/picks.sha && echo '새 글 없음' && exit 0
           git commit -m "새 글을 모은다 ($(date -u -d '9 hours' +%Y-%m-%d))"
           git push

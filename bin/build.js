@@ -1,11 +1,11 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS, collect } from '../src/pickers.js'
 import { fetchAllPosts, fetchPost } from '../src/naver.js'
 import { parsePlace } from '../src/place.js'
 import { myPicks } from '../src/mine.js'
-import { openDb, savePick, placeOf, dropOthers } from '../src/db.js'
+import { openDb, savePick, placeOf, dropOthers, digest } from '../src/db.js'
 
 const data = join(import.meta.dirname, '../data')
 const show = (text) => process.stdout.write(`\r\x1b[K${text}`)
@@ -51,3 +51,6 @@ const { count, located } = db
   .prepare('SELECT COUNT(*) AS count, COUNT(lat) AS located FROM pick')
   .get()
 console.log(`\nDB에 픽 ${count}개, 좌표 ${located}개`)
+
+// 매일 돌리므로 새 글이 있을 때만 남기려고 지문을 곁에 둔다.
+writeFileSync(join(data, 'picks.sha'), `${digest(db)}\n`)
