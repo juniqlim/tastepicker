@@ -12,7 +12,7 @@ export const PICKERS = [
     url: 'https://blog.naver.com/thddbcjf',
     // '안양 호계동 장수옥-장수옥은 뽀얀 걸로'
     // 한줄평에 호평과 혹평이 섞여 있어 등급을 매기지 않고 그대로 보여준다.
-    read({ title, category }) {
+    read({ title, category = '' }) {
       if (category.includes('일상') || category.includes('챌린지')) return null
 
       const found = title.match(/^(.+?)\s*[-–]\s*(.+)$/)

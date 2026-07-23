@@ -1,10 +1,11 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
+import { openDb, allPicks } from '../src/db.js'
 
-const data = join(import.meta.dirname, '../data')
-const picks = JSON.parse(readFileSync(join(data, 'picks.json'), 'utf-8')).filter((p) => p.place)
+const db = openDb(join(import.meta.dirname, '../data/picks.db'))
+const picks = allPicks(db).filter((pick) => pick.place)
 
 const COLORS = ['#e8590c', '#1971c2']
 const nameOf = Object.fromEntries(PICKERS.map((p) => [p.id, p.name]))
