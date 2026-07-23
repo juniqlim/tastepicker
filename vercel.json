@@ -1,4 +1,0 @@
-{
-  "buildCommand": "node bin/map.js",
-  "outputDirectory": "public"
-}
