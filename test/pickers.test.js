@@ -1,0 +1,83 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { parseRss } from '../src/rss.js'
+import { PICKERS, collect } from '../src/pickers.js'
+
+const picksOf = (id) => {
+  const picker = PICKERS.find((p) => p.id === id)
+  const xml = readFileSync(join(import.meta.dirname, '../data/fixtures', `${id}.xml`), 'utf-8')
+  return collect(picker, parseRss(xml))
+}
+
+const byName = (picks, name) => picks.find((p) => p.name === name)
+
+test('정직한 청년 - 지역과 가게명과 한줄평을 나눈다', () => {
+  const pick = byName(picksOf('thddbcjf'), '억떡볶이')
+
+  assert.deepEqual(pick, {
+    picker: 'thddbcjf',
+    region: '안양 평촌학원가',
+    name: '억떡볶이',
+    note: '추억은 현재진행듕',
+    rating: null,
+    link: 'https://blog.naver.com/thddbcjf/224355010343',
+  })
+})
+
+test('정직한 청년 - 지점명은 가게명에 붙인다', () => {
+  const pick = byName(picksOf('thddbcjf'), '을밀대 본점')
+
+  assert.equal(pick.region, '마포')
+})
+
+test('정직한 청년 - 일상 글은 거른다', () => {
+  const picks = picksOf('thddbcjf')
+
+  assert.equal(picks.length, 38)
+  assert.ok(!picks.some((p) => p.name.includes('일상')))
+})
+
+test('RockHer - 지역과 가게명과 등급을 나눈다', () => {
+  const pick = byName(picksOf('fascinoya'), '하가원')
+
+  assert.deepEqual(pick, {
+    picker: 'fascinoya',
+    region: '부산',
+    name: '하가원',
+    note: '해운대 장산 콩국수 메뉴 점심 웨이팅 등',
+    rating: '추천',
+    link: 'https://blog.naver.com/fascinoya/224354139472',
+  })
+})
+
+test('모든 픽은 출처를 밝힌다', () => {
+  const picks = [...picksOf('thddbcjf'), ...picksOf('fascinoya')]
+
+  for (const pick of picks) {
+    assert.ok(PICKERS.some((p) => p.id === pick.picker), `${pick.name}: 픽커 없음`)
+    assert.match(pick.link, /^https:\/\/blog\.naver\.com\/\w+\/\d+$/, `${pick.name}: 원문 링크 없음`)
+  }
+})
+
+test('RockHer - 강추와 추천을 구분한다', () => {
+  const picks = picksOf('fascinoya')
+
+  assert.equal(byName(picks, '롱메').rating, '강추')
+  assert.equal(byName(picks, '부산애').rating, '추천')
+})
+
+test('RockHer - 등급을 안 붙인 글은 거른다', () => {
+  const picks = picksOf('fascinoya')
+
+  assert.equal(picks.length, 17)
+  assert.ok(!byName(picks, '시하온'))
+})
+
+test('RockHer - 와인 글은 거른다', () => {
+  const picks = picksOf('fascinoya')
+
+  assert.ok(!picks.some((p) => p.name.includes('샴페인')))
+})
