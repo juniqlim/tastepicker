@@ -154,9 +154,6 @@ map.fitBounds(home.length ? home : spots.map(s => [s.lat, s.lng]), { padding: [4
 const site = join(import.meta.dirname, '../public')
 mkdirSync(site, { recursive: true })
 
-// GitHub Pages는 이 파일을 보고 커스텀 도메인으로 연다.
-writeFileSync(join(site, 'CNAME'), 'tastepicker.juniq.im\n')
-
 const path = join(site, 'index.html')
 writeFileSync(path, html)
 console.log(`가게 ${spots.length}곳, 픽 ${picks.length}개 → ${path}`)
