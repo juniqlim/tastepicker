@@ -4,8 +4,22 @@ import { join } from 'node:path'
 import { PICKERS } from '../src/pickers.js'
 import { openDb, allPicks } from '../src/db.js'
 
+try {
+  process.loadEnvFile(join(import.meta.dirname, '../.env'))
+} catch {
+  // 배포할 때는 파일 대신 환경변수로 들어온다.
+}
+
+const SUPABASE = {
+  url: process.env.SUPABASE_URL ?? '',
+  key: process.env.SUPABASE_ANON_KEY ?? '',
+}
+if (!SUPABASE.url || !SUPABASE.key) throw new Error('SUPABASE_URL / SUPABASE_ANON_KEY 가 없다')
+
 const db = openDb(join(import.meta.dirname, '../data/picks.db'))
-const picks = allPicks(db).filter((pick) => pick.place)
+
+// 내 평가는 Supabase에 산다. 블로그 픽만 HTML에 박는다.
+const picks = allPicks(db).filter((pick) => pick.place && pick.picker !== 'juniqlim')
 
 /**
  * 핀 하나는 가게 하나다. 픽 하나가 아니다.
@@ -90,12 +104,14 @@ const html = `<!doctype html>
   .pop .addr { color:#868e96; font-size:12px }
 </style>
 <div id="bar">
+  <div class="row" id="mine"></div>
   ${legend}
   <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.</div>
 </div>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+const SUPABASE = ${JSON.stringify(SUPABASE)}
 const spots = ${JSON.stringify(spots)}
 const bandOf = ${JSON.stringify(bandOf)}
 const fadeOf = ${JSON.stringify(fadeOf)}
@@ -115,14 +131,16 @@ const review = pick =>
   '<br>' + (pick.note || '') +
   (pick.link ? ' <a href="' + pick.link + '" target="_blank">원문</a>' : '') + '</li>'
 
+// 가게 이름은 픽커의 표기가 아니라 네이버 상호로 통일한다.
+// 픽커마다 다르게 적어서 같은 집이 여러 곳처럼 보인다.
+const popupOf = spot =>
+  '<div class="pop"><b>' + (spot.name || spot.picks[0].name) + '</b>' +
+  '<br><span class="addr">' + (spot.address || '') + '</span>' +
+  '<ul>' + spot.picks.map(review).join('') + '</ul>' +
+  '<a href="https://map.naver.com/p/entry/place/' + spot.placeId + '" target="_blank">네이버 지도</a></div>'
+
 for (const spot of spots) {
-  // 가게 이름은 픽커의 표기가 아니라 네이버 상호로 통일한다.
-  // 픽커마다 다르게 적어서 같은 집이 여러 곳처럼 보인다.
-  const popup =
-    '<div class="pop"><b>' + (spot.name || spot.picks[0].name) + '</b>' +
-    '<br><span class="addr">' + (spot.address || '') + '</span>' +
-    '<ul>' + spot.picks.map(review).join('') + '</ul>' +
-    '<a href="https://map.naver.com/p/entry/place/' + spot.placeId + '" target="_blank">네이버 지도</a></div>'
+  const popup = popupOf(spot)
 
   // 한 가게를 여러 픽커가 쓰면 마커도 그만큼 겹쳐 둔다. 필터를 켜고 끌 수 있어야 한다.
   for (const band of new Set(spot.picks.map(p => p.picker + ':' + (bandOf[p.rating] || 'plain')))) {
@@ -135,12 +153,52 @@ for (const spot of spots) {
   }
 }
 
-for (const box of document.querySelectorAll('#bar input')) {
-  box.onchange = () => {
-    const layer = layers[box.dataset.layer]
-    box.checked ? layer.addTo(map) : layer.remove()
+/**
+ * 내 평가는 자주 바뀌어서 HTML에 박지 않고 열 때 받아온다.
+ * 받아오기 전에도 블로그 픽은 이미 보인다. Supabase가 멈춰도 지도는 뜬다.
+ */
+async function loadMine() {
+  const res = await fetch(SUPABASE.url + '/rest/v1/rating?select=*&order=visited.desc', {
+    headers: { apikey: SUPABASE.key }
+  })
+  if (!res.ok) return
+
+  const spotOf = new Map(spots.map(s => [s.placeId, s]))
+  const layer = L.layerGroup().addTo(map)
+  layers['juniqlim:mine'] = layer
+  let count = 0
+
+  for (const row of await res.json()) {
+    const spot = spotOf.get(row.place_id)
+    if (!spot) continue
+
+    spot.picks.unshift({
+      picker: 'juniqlim', name: row.place_name, note: row.note,
+      rating: row.level + '점', visited: row.visited, link: null
+    })
+    layer.addLayer(L.circleMarker([spot.lat, spot.lng], {
+      radius: 6, weight: 1.5, color: '#fff', fillColor: colorOf.juniqlim, fillOpacity: 1
+    }).bindPopup(popupOf(spot)))
+    count++
+  }
+
+  const row = document.getElementById('mine')
+  row.innerHTML = '<b style="color:' + colorOf.juniqlim + '">●</b> <a>juniqlim</a>' +
+    '<label><input type="checkbox" data-layer="juniqlim:mine" checked> <span>' + count + '</span></label>'
+  bindBoxes()
+}
+
+function bindBoxes() {
+  for (const box of document.querySelectorAll('#bar input')) {
+    box.onchange = () => {
+      const layer = layers[box.dataset.layer]
+      box.checked ? layer.addTo(map) : layer.remove()
+    }
   }
 }
+
+bindBoxes()
+loadMine()
 
 // 해외 픽이 섞여 있어 전체로 맞추면 세계 지도가 된다. 국내 픽 기준으로 연다.
 const home = spots
