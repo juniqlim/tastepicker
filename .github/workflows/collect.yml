@@ -21,6 +21,13 @@ jobs:
           node-version: 24
       - run: npm run build
 
+      # 무료 Supabase는 7일간 요청이 없으면 잠든다. 매일 한 번 두드려 깨워 둔다.
+      - name: Supabase를 깨운다
+        run: |
+          curl -sf -o /dev/null \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/rating?select=place_id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}"
+
       # SQLite 파일은 내용이 같아도 바이트가 달라져서 지문으로 본다.
       - name: 새 글을 남긴다
         run: |
