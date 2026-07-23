@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
@@ -57,6 +57,9 @@ map.fitBounds(picks.map(p => [p.place.lat, p.place.lng]), { padding: [40, 40] })
 </script>
 `
 
-const path = join(data, 'map.html')
+const site = join(import.meta.dirname, '../public')
+mkdirSync(site, { recursive: true })
+
+const path = join(site, 'index.html')
 writeFileSync(path, html)
 console.log(`픽 ${picks.length}개 → ${path}`)
