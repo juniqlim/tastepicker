@@ -188,11 +188,25 @@ async function loadMine() {
   bindBoxes()
 }
 
+// 고른 픽커는 이 브라우저에 남는다. 켠 것이 아니라 끈 것을 적는다.
+// 그래야 픽커가 새로 들어와도 켜진 채로 보인다.
+const HIDDEN = 'tastepicker:hidden'
+const hidden = new Set(JSON.parse(localStorage.getItem(HIDDEN) || '[]'))
+
 function bindBoxes() {
   for (const box of document.querySelectorAll('#bar input')) {
+    const key = box.dataset.layer
+
+    if (hidden.has(key)) {
+      box.checked = false
+      layers[key] && layers[key].remove()
+    }
+
     box.onchange = () => {
-      const layer = layers[box.dataset.layer]
+      const layer = layers[key]
       box.checked ? layer.addTo(map) : layer.remove()
+      box.checked ? hidden.delete(key) : hidden.add(key)
+      localStorage.setItem(HIDDEN, JSON.stringify([...hidden]))
     }
   }
 }

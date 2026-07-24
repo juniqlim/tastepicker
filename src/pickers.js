@@ -26,8 +26,7 @@ export const PICKERS = [
   {
     id: 'juniqlim',
     name: 'juniqlim',
-    // 블로그가 없다. 긁어올 글이 없고 data/juniqlim.json 에 직접 적는다.
-    mine: 'juniqlim.json',
+    // 블로그가 없다. 긁어올 글이 없고 내 평가는 Supabase 에 직접 적는다.
   },
   {
     id: 'thddbcjf',
@@ -60,6 +59,48 @@ export const PICKERS = [
 
       const [, region, name, rating, note] = found
       return { region, name, note: note.trim(), rating, level: LEVELS[rating], levelBy: '픽커' }
+    },
+  },
+  {
+    id: 'tastesherlok',
+    name: '미식탐정',
+    url: 'https://blog.naver.com/tastesherlok',
+    // '3451번째 식당 / 대방양곱창구이 / 둔촌: 탁월한 곱창을 넘어서는 친절한 대접'
+    // 식당마다 순번을 매긴다. 순번이 없으면 한 집을 다룬 글이 아니다.
+    read({ title }) {
+      const found = title.match(/^\d+번째 식당\s*\/\s*(.+?)\s*\/\s*(.+?)\s*:\s*(.+)$/)
+      if (!found) return null
+
+      const [, name, region, note] = found
+      return { region, name, note, rating: null, level: null, levelBy: null }
+    },
+  },
+  {
+    id: 'symin67',
+    name: '맛짱',
+    url: 'https://blog.naver.com/symin67',
+    // '[종암동/스담] 디너 오마카세 가격이 33,000원의 최저가인데도 훌륭한 고려대역 스시야 맛집'
+    read({ title }) {
+      const found = title.match(/^\[([^/\]]+)\/([^\]]+)\]\s*(.+)$/)
+      if (!found) return null
+
+      const [, region, name, note] = found
+      return { region, name, note, rating: null, level: null, levelBy: null }
+    },
+  },
+  {
+    id: 'melburne',
+    name: '오먹산',
+    url: 'https://blog.naver.com/melburne',
+    // '[효제루/종로5가] - 밸런스가 좋은 짬뽕 한그릇! 마무리 밥까지 말아서 완뽕'
+    // 맛짱과 대괄호 안 순서가 반대다. 이쪽은 가게명이 먼저다.
+    // 하이픈 뒤가 한줄평이라 하이픈이 없으면 여러 집을 묶은 글로 본다.
+    read({ title }) {
+      const found = title.match(/^\[([^/\]]+)\/([^\]]+)\]\s*[-–]\s*(.+)$/)
+      if (!found) return null
+
+      const [, name, region, note] = found
+      return { region, name, note, rating: null, level: null, levelBy: null }
     },
   },
 ]

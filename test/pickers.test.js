@@ -133,3 +133,84 @@ test('RockHer - 와인 글은 거른다', () => {
 
   assert.ok(!picks.some((p) => p.name.includes('샴페인')))
 })
+
+const pickerOf = (id) => PICKERS.find((picker) => picker.id === id)
+
+test('미식탐정 - 가게명과 지역과 한줄평을 나눈다', () => {
+  const pick = pickerOf('tastesherlok').read({
+    title: '3451번째 식당 / 대방양곱창구이 / 둔촌: 탁월한 곱창을 넘어서는 친절한 대접',
+  })
+
+  assert.deepEqual(pick, {
+    region: '둔촌',
+    name: '대방양곱창구이',
+    note: '탁월한 곱창을 넘어서는 친절한 대접',
+    rating: null,
+    level: null,
+    levelBy: null,
+  })
+})
+
+test('미식탐정 - 식당 순번이 없는 글은 거른다', () => {
+  const read = pickerOf('tastesherlok').read
+
+  assert.equal(read({ title: '서울 이모저모 식당 - 7월 2주차' }), null)
+  assert.equal(read({ title: '2026년 막국수 완전 정복 (총 30곳 식당)' }), null)
+})
+
+test('맛짱 - 대괄호 안은 지역 다음 가게명이다', () => {
+  const pick = pickerOf('symin67').read({
+    title: '[종암동/스담] 디너 오마카세 가격이 33,000원의 최저가인데도 훌륭한 고려대역 스시야 맛집',
+  })
+
+  assert.equal(pick.region, '종암동')
+  assert.equal(pick.name, '스담')
+  assert.equal(pick.note, '디너 오마카세 가격이 33,000원의 최저가인데도 훌륭한 고려대역 스시야 맛집')
+})
+
+test('맛짱 - 대괄호 없는 글은 거른다', () => {
+  const pick = pickerOf('symin67').read({
+    title: '한우 전문점이 제주돈 생갈비까지 잘하면 반칙이죠. 여기는 등촌동 가양역 맛집 월정떼루아입니다.',
+  })
+
+  assert.equal(pick, null)
+})
+
+test('오먹산 - 대괄호 안은 가게명 다음 지역이다', () => {
+  const pick = pickerOf('melburne').read({
+    title: '[효제루/종로5가] - 밸런스가 좋은 짬뽕 한그릇! 마무리 밥까지 말아서 완뽕',
+  })
+
+  assert.equal(pick.name, '효제루')
+  assert.equal(pick.region, '종로5가')
+  assert.equal(pick.note, '밸런스가 좋은 짬뽕 한그릇! 마무리 밥까지 말아서 완뽕')
+})
+
+test('오먹산 - 하이픈 뒤 공백이 없어도 읽는다', () => {
+  const pick = pickerOf('melburne').read({
+    title: '[바다회향기/노량진 컵밥거리] -원조의 깊이는 쉽게 흉내 낼 수 없습니다',
+  })
+
+  assert.equal(pick.name, '바다회향기')
+  assert.equal(pick.note, '원조의 깊이는 쉽게 흉내 낼 수 없습니다')
+})
+
+test('오먹산 - 한줄평이 없는 묶음 글은 거른다', () => {
+  const read = pickerOf('melburne').read
+
+  assert.equal(read({ title: '[향원·띠디·대박각/경기도] 짜장으로 소문난 3대 맛집 탐방기' }), null)
+  assert.equal(read({ title: '[2025 마이 블로그 리포트] 데이터로 채워보는 내 블로그 취향 리포트' }), null)
+})
+
+test('새 픽커들은 등급을 안 매기니 비워둔다', () => {
+  const 픽 = [
+    pickerOf('tastesherlok').read({ title: '1번째 식당 / 집 / 안양: 좋다' }),
+    pickerOf('symin67').read({ title: '[안양/집] 좋다' }),
+    pickerOf('melburne').read({ title: '[집/안양] - 좋다' }),
+  ]
+
+  for (const pick of 픽) {
+    assert.equal(pick.level, null)
+    assert.equal(pick.levelBy, null)
+  }
+})
