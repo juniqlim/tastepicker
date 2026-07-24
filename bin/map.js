@@ -130,7 +130,7 @@ const html = `<!doctype html>
       .join('')}</select>
   </div>
   <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.
-    <a href="/list.html" style="color:#1971c2">목록으로 →</a></div>
+    <a href="/list" style="color:#1971c2">목록으로 →</a></div>
 </div>
 <div id="list"></div>
 <div id="map"></div>
