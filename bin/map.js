@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
-import { regionOf } from '../src/region.js'
+import { toSpots, byWeight, toRegions } from '../src/spots.js'
 import { openDb, allPicks } from '../src/db.js'
 
 try {
@@ -27,39 +27,9 @@ const picks = allPicks(db).filter((pick) => pick.place && pick.picker !== 'juniq
  * 한 가게를 여러 픽커가, 또 같은 픽커가 여러 번 쓰기 때문에
  * 픽마다 핀을 찍으면 같은 자리에 겹쳐서 하나만 눌린다.
  */
-// 장소 ID로 묶는다. 구형 지도 위젯과 구글맵은 ID를 안 줘서 그때는 좌표로 묶는다.
-const keyOf = (place) => place.placeId ?? `${place.lat},${place.lng}`
-
-const places = new Map()
-for (const pick of picks) {
-  const key = keyOf(pick.place)
-  const place = places.get(key) ?? { ...pick.place, picks: [] }
-  place.picks.push(pick)
-  places.set(key, place)
-}
-
-const spots = [...places.values()].map((spot) => ({ ...spot, region: regionOf(spot.address) }))
-
-// 지역은 가게 수로 센다. 많은 곳부터 보여야 고르기 쉽다.
-const counted = [...spots.reduce((count, spot) => {
-  if (spot.region) count.set(spot.region, (count.get(spot.region) ?? 0) + 1)
-  return count
-}, new Map())].sort((one, other) => other[1] - one[1])
-
-/**
- * 시도로 묶는다. 개수순으로만 늘어놓으면 서울 구들 사이에 경기 시들이 끼어든다.
- * 묶음도, 묶음 안도 가게가 많은 곳이 먼저다.
- */
-const grouped = new Map()
-for (const [name, count] of counted) {
-  const [sido] = name.split(' ')
-  const group = grouped.get(sido) ?? { total: 0, items: [] }
-  group.total += count
-  group.items.push([name, count])
-  grouped.set(sido, group)
-}
-
-const regions = [...grouped].sort((one, other) => other[1].total - one[1].total)
+// 겹치는 집이 먼저 오게 미리 정렬해 둔다. 브라우저는 걸러내기만 하면 순서가 지켜진다.
+const spots = toSpots(picks).sort(byWeight)
+const regions = toRegions(spots)
 
 /**
  * 등급은 픽커마다 다르다. RockHer는 아홉 단계를 쓰고 정직한 청년은 매기지 않는다.
@@ -159,7 +129,8 @@ const html = `<!doctype html>
       })
       .join('')}</select>
   </div>
-  <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.</div>
+  <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.
+    <a href="/list.html" style="color:#1971c2">목록으로 →</a></div>
 </div>
 <div id="list"></div>
 <div id="map"></div>
@@ -280,9 +251,8 @@ document.getElementById('region').onchange = (event) => {
   const region = event.target.value
   if (!region) { listBox.classList.remove('on'); return }
 
-  // 여러 픽커가 겹친 집을 위로 올린다. 겹칠수록 근거가 두껍다.
-  const 무게 = spot => new Set(spot.picks.map(p => p.picker)).size * 100 + spot.picks.length
-  const here = spots.filter(spot => spot.region === region).sort((a, b) => 무게(b) - 무게(a))
+  // spots 는 겹치는 집 순으로 이미 정렬돼 있다.
+  const here = spots.filter(spot => spot.region === region)
 
   listBox.classList.add('on')
   listBox.innerHTML = '<h3>' + region + ' <span style="color:#adb5bd">' + here.length + '곳</span></h3>'

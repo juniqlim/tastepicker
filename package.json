@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node bin/picks.js",
     "build": "node bin/build.js",
-    "map": "node bin/map.js",
-    "test": "node --test test/*.test.js"
+    "map": "node bin/map.js && node bin/list.js",
+    "test": "node --test test/*.test.js",
+    "list": "node bin/list.js"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "buildCommand": "node bin/map.js",
+  "buildCommand": "npm run map",
   "outputDirectory": "public",
   "cleanUrls": true
 }
