@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
+import { regionOf } from '../src/region.js'
 import { openDb, allPicks } from '../src/db.js'
 
 try {
@@ -37,7 +38,13 @@ for (const pick of picks) {
   places.set(key, place)
 }
 
-const spots = [...places.values()]
+const spots = [...places.values()].map((spot) => ({ ...spot, region: regionOf(spot.address) }))
+
+// 지역은 가게 수로 센다. 많은 곳부터 보여야 고르기 쉽다.
+const regions = [...spots.reduce((count, spot) => {
+  if (spot.region) count.set(spot.region, (count.get(spot.region) ?? 0) + 1)
+  return count
+}, new Map())].sort((one, other) => other[1] - one[1])
 
 /**
  * 등급은 픽커마다 다르다. RockHer는 아홉 단계를 쓰고 정직한 청년은 매기지 않는다.
@@ -106,12 +113,29 @@ const html = `<!doctype html>
   .pop i { color:#adb5bd; font-style:normal; font-size:12px }
   .pop em { color:#1971c2; font-style:normal; font-weight:600 }
   .pop .addr { color:#868e96; font-size:12px }
+  #bar select { font:inherit; padding:2px 4px; border:1px solid #dee2e6; border-radius:4px }
+  #list { position:absolute; z-index:500; top:10px; right:10px; bottom:10px; width:290px;
+          background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25);
+          overflow-y:auto; padding:10px 12px; display:none }
+  #list.on { display:block }
+  #list h3 { margin:0 0 8px; font-size:14px }
+  #list a { display:block; padding:6px 0; border-top:1px solid #f1f3f5; color:#212529;
+            text-decoration:none; cursor:pointer }
+  #list a:hover { background:#f8f9fa }
+  #list .note { color:#868e96; font-size:12px }
 </style>
 <div id="bar">
   <div class="row" id="mine"></div>
   ${legend}
+  <div class="row">
+    <a>지역</a>
+    <select id="region"><option value="">고르면 그곳만 봅니다</option>${regions
+      .map(([name, count]) => `<option value="${name}">${name} (${count})</option>`)
+      .join('')}</select>
+  </div>
   <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.</div>
 </div>
+<div id="list"></div>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -143,6 +167,9 @@ const popupOf = spot =>
   '<ul>' + spot.picks.map(review).join('') + '</ul>' +
   '<a href="https://map.naver.com/p/entry/place/' + spot.placeId + '" target="_blank">네이버 지도</a></div>'
 
+// 목록에서 가게를 고르면 그 핀을 열어야 해서 가게마다 마커 하나를 기억해 둔다.
+const markerOf = new Map()
+
 for (const spot of spots) {
   const popup = popupOf(spot)
 
@@ -154,6 +181,7 @@ for (const spot of spots) {
       fillColor: colorOf[picker], fillOpacity: fadeOf[level]
     }).bindPopup(popup)
     ;(layers[band] ||= L.layerGroup().addTo(map)).addLayer(marker)
+    markerOf.has(spot) || markerOf.set(spot, marker)
   }
 }
 
@@ -217,6 +245,42 @@ function bindBoxes() {
 
 bindBoxes()
 loadMine()
+
+// 지역을 고르면 그곳 가게만 목록으로 보이고 지도도 그리로 옮긴다.
+// 픽커를 고르는 사람에게는 '어디' 도 고르는 기준이다.
+const listBox = document.getElementById('list')
+
+document.getElementById('region').onchange = (event) => {
+  const region = event.target.value
+  if (!region) { listBox.classList.remove('on'); return }
+
+  // 여러 픽커가 겹친 집을 위로 올린다. 겹칠수록 근거가 두껍다.
+  const 무게 = spot => new Set(spot.picks.map(p => p.picker)).size * 100 + spot.picks.length
+  const here = spots.filter(spot => spot.region === region).sort((a, b) => 무게(b) - 무게(a))
+
+  listBox.classList.add('on')
+  listBox.innerHTML = '<h3>' + region + ' <span style="color:#adb5bd">' + here.length + '곳</span></h3>'
+
+  map.fitBounds(here.map(spot => [spot.lat, spot.lng]), { padding: [40, 40] })
+
+  for (const spot of here.slice(0, 200)) {
+    const item = document.createElement('a')
+    item.innerHTML = '<b>' + (spot.name || spot.picks[0].name) + '</b>' +
+      '<div class="note">' + [...new Set(spot.picks.map(p => pickerName[p.picker]))].join(', ') +
+      (spot.picks.length > 1 ? ' · ' + spot.picks.length + '번' : '') + '</div>'
+    item.onclick = () => {
+      map.setView([spot.lat, spot.lng], 17)
+      markerOf.get(spot) && markerOf.get(spot).openPopup()
+    }
+    listBox.append(item)
+  }
+
+  // 다 그리면 무겁다. 겹치는 집부터 보여주고 나머지는 지도에서 찾게 둔다.
+  if (here.length > 200) {
+    listBox.insertAdjacentHTML('beforeend',
+      '<div class="note" style="padding:8px 0">겹치는 집부터 200곳만 보입니다. 나머지는 지도에 있습니다.</div>')
+  }
+}
 
 // 해외 픽이 섞여 있어 전체로 맞추면 세계 지도가 된다. 국내 픽 기준으로 연다.
 const home = spots
