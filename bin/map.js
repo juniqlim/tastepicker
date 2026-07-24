@@ -41,10 +41,25 @@ for (const pick of picks) {
 const spots = [...places.values()].map((spot) => ({ ...spot, region: regionOf(spot.address) }))
 
 // 지역은 가게 수로 센다. 많은 곳부터 보여야 고르기 쉽다.
-const regions = [...spots.reduce((count, spot) => {
+const counted = [...spots.reduce((count, spot) => {
   if (spot.region) count.set(spot.region, (count.get(spot.region) ?? 0) + 1)
   return count
 }, new Map())].sort((one, other) => other[1] - one[1])
+
+/**
+ * 시도로 묶는다. 개수순으로만 늘어놓으면 서울 구들 사이에 경기 시들이 끼어든다.
+ * 묶음도, 묶음 안도 가게가 많은 곳이 먼저다.
+ */
+const grouped = new Map()
+for (const [name, count] of counted) {
+  const [sido] = name.split(' ')
+  const group = grouped.get(sido) ?? { total: 0, items: [] }
+  group.total += count
+  group.items.push([name, count])
+  grouped.set(sido, group)
+}
+
+const regions = [...grouped].sort((one, other) => other[1].total - one[1].total)
 
 /**
  * 등급은 픽커마다 다르다. RockHer는 아홉 단계를 쓰고 정직한 청년은 매기지 않는다.
@@ -130,7 +145,18 @@ const html = `<!doctype html>
   <div class="row">
     <a>지역</a>
     <select id="region"><option value="">고르면 그곳만 봅니다</option>${regions
-      .map(([name, count]) => `<option value="${name}">${name} (${count})</option>`)
+      .map(([sido, group]) => {
+        // 세종과 해외는 아래가 하나뿐이라 묶어봐야 두 줄이 된다.
+        if (group.items.length === 1) {
+          const [name, count] = group.items[0]
+          return `<option value="${name}">${name} (${count})</option>`
+        }
+
+        const options = group.items
+          .map(([name, count]) => `<option value="${name}">${name.slice(sido.length + 1)} (${count})</option>`)
+          .join('')
+        return `<optgroup label="${sido} (${group.total})">${options}</optgroup>`
+      })
       .join('')}</select>
   </div>
   <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.</div>
