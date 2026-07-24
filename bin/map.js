@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
-import { toSpots, byWeight, toRegions } from '../src/spots.js'
+import { toSpots, byWeight, toRegions, regionOptions } from '../src/spots.js'
 import { openDb, allPicks } from '../src/db.js'
 
 try {
@@ -114,20 +114,7 @@ const html = `<!doctype html>
   ${legend}
   <div class="row">
     <a>지역</a>
-    <select id="region"><option value="">고르면 그곳만 봅니다</option>${regions
-      .map(([sido, group]) => {
-        // 세종과 해외는 아래가 하나뿐이라 묶어봐야 두 줄이 된다.
-        if (group.items.length === 1) {
-          const [name, count] = group.items[0]
-          return `<option value="${name}">${name} (${count})</option>`
-        }
-
-        const options = group.items
-          .map(([name, count]) => `<option value="${name}">${name.slice(sido.length + 1)} (${count})</option>`)
-          .join('')
-        return `<optgroup label="${sido} (${group.total})">${options}</optgroup>`
-      })
-      .join('')}</select>
+    <select id="region"><option value="">고르면 그곳만 봅니다</option>${regionOptions(regions)}</select>
   </div>
   <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.
     <a href="/list" style="color:#1971c2">목록으로 →</a></div>
@@ -252,7 +239,9 @@ document.getElementById('region').onchange = (event) => {
   if (!region) { listBox.classList.remove('on'); return }
 
   // spots 는 겹치는 집 순으로 이미 정렬돼 있다.
-  const here = spots.filter(spot => spot.region === region)
+  // 시도만 골랐으면 그 아래를 다 받는다. '서울' 은 '서울 마포구' 를 품는다.
+  const here = spots.filter(spot =>
+    spot.region === region || (spot.region || '').startsWith(region + ' '))
 
   listBox.classList.add('on')
   listBox.innerHTML = '<h3>' + region + ' <span style="color:#adb5bd">' + here.length + '곳</span></h3>'

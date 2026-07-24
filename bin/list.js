@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
-import { toSpots, byWeight, toRegions } from '../src/spots.js'
+import { toSpots, byWeight, toRegions, regionOptions } from '../src/spots.js'
 import { openDb, allPicks } from '../src/db.js'
 
 const db = openDb(join(import.meta.dirname, '../data/picks.db'))
@@ -25,21 +25,7 @@ const spots = toSpots(picks)
     })),
   }))
 
-const regions = toRegions(toSpots(picks))
-
-const options = regions
-  .map(([sido, group]) => {
-    if (group.items.length === 1) {
-      const [name, count] = group.items[0]
-      return `<option value="${name}">${name} (${count})</option>`
-    }
-
-    const items = group.items
-      .map(([name, count]) => `<option value="${name}">${name.slice(sido.length + 1)} (${count})</option>`)
-      .join('')
-    return `<optgroup label="${sido} (${group.total})">${items}</optgroup>`
-  })
-  .join('')
+const options = regionOptions(toRegions(toSpots(picks)))
 
 const html = `<!doctype html>
 <meta charset="utf-8">
@@ -134,8 +120,9 @@ function shown() {
   const picker = $('picker').value
   const word = $('find').value.trim().toLowerCase()
 
+  // 시도만 골랐으면 그 아래를 다 받는다. '서울' 은 '서울 마포구' 를 품는다.
   const found = spots.filter(spot =>
-    (!region || spot.region === region) &&
+    (!region || spot.region === region || spot.region.startsWith(region + ' ')) &&
     (!picker || spot.picks.some(pick => pick.picker === picker)) &&
     (!word || spot.name.toLowerCase().includes(word)))
 

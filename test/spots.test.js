@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { toSpots, byWeight, byVisits, byName } from '../src/spots.js'
+import { toSpots, byWeight, byVisits, byName, regionOptions, inRegion } from '../src/spots.js'
 
 const 픽 = (over) => ({
   picker: 'thddbcjf', name: '억떡볶이', note: '맛있다', rating: null, level: null,
@@ -71,4 +71,26 @@ test('이름 순으로도 세운다', () => {
   const spots = [{ name: '나집' }, { name: '가집' }, { name: '다집' }]
 
   assert.deepEqual(spots.sort(byName).map((spot) => spot.name), ['가집', '나집', '다집'])
+})
+
+test('시도 전체도 고를 수 있게 옵션을 만든다', () => {
+  const html = regionOptions([
+    ['서울', { total: 30, items: [['서울 마포구', 20], ['서울 중구', 10]] }],
+    ['해외', { total: 5, items: [['해외', 5]] }],
+  ])
+
+  // 묶음 안에 시도 전체가 먼저 온다
+  assert.match(html, /<optgroup label="서울 \(30\)"><option value="서울">서울 전체 \(30\)<\/option>/)
+  assert.match(html, /<option value="서울 마포구">마포구 \(20\)<\/option>/)
+  // 아래가 하나뿐이면 묶지 않는다
+  assert.match(html, /<option value="해외">해외 \(5\)<\/option>/)
+  assert.doesNotMatch(html, /label="해외/)
+})
+
+test('지역이 시도면 그 아래를 다 고른다', () => {
+  assert.ok(inRegion({ region: '서울 마포구' }, '서울'))
+  assert.ok(inRegion({ region: '서울 마포구' }, '서울 마포구'))
+  assert.ok(!inRegion({ region: '서울 마포구' }, '서울 중구'))
+  assert.ok(!inRegion({ region: '경기 안양시' }, '서울'))
+  assert.ok(inRegion({ region: '서울 마포구' }, ''))
 })

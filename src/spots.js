@@ -66,3 +66,33 @@ export function toRegions(spots) {
 
   return [...grouped].sort((one, other) => other[1].total - one[1].total)
 }
+
+/**
+ * 고를 수 있는 지역 목록.
+ * optgroup 의 이름표는 눌리지 않아서, 시도 전체를 묶음 맨 위에 따로 둔다.
+ */
+export function regionOptions(regions) {
+  return regions
+    .map(([sido, group]) => {
+      // 아래가 하나뿐이면 묶어봐야 같은 말이 두 줄이 된다.
+      if (group.items.length === 1) {
+        const [name, count] = group.items[0]
+        return `<option value="${name}">${name} (${count})</option>`
+      }
+
+      const items = group.items
+        .map(([name, count]) => `<option value="${name}">${name.slice(sido.length + 1)} (${count})</option>`)
+        .join('')
+
+      return `<optgroup label="${sido} (${group.total})">` +
+        `<option value="${sido}">${sido} 전체 (${group.total})</option>${items}</optgroup>`
+    })
+    .join('')
+}
+
+/** 고른 지역에 드는가. 시도만 골랐으면 그 아래를 다 받는다. */
+export function inRegion(spot, picked) {
+  if (!picked) return true
+
+  return spot.region === picked || spot.region.startsWith(`${picked} `)
+}
