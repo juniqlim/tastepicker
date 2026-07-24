@@ -28,10 +28,24 @@ export function toSpots(picks) {
   return [...places.values()]
 }
 
-/** 여러 픽커가 겹친 집이 먼저다. 겹칠수록 근거가 두껍다. */
+/**
+ * 여러 픽커가 겹친 집이 먼저다. 겹칠수록 근거가 두껍다.
+ * 한 픽커가 열 번 간 것보다 세 픽커가 한 번씩 간 쪽을 위에 둔다.
+ * 혼자 여러 번 가는 건 취향일 수 있어도, 여럿이 가면 취향만은 아니다.
+ */
 export function byWeight(one, other) {
   const weigh = (spot) => new Set(spot.picks.map((pick) => pick.picker)).size * 100 + spot.picks.length
   return weigh(other) - weigh(one)
+}
+
+/** 다녀간 횟수가 많은 집이 먼저다. 누가 갔는지는 보지 않는다. */
+export function byVisits(one, other) {
+  return other.picks.length - one.picks.length
+}
+
+/** 가나다 순. 찾는 이름이 있을 때 쓴다. */
+export function byName(one, other) {
+  return one.name.localeCompare(other.name, 'ko')
 }
 
 /** 시도로 묶은 지역 목록. 묶음도, 묶음 안도 가게가 많은 곳이 먼저다. */
