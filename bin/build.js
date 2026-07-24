@@ -3,11 +3,26 @@ import { join } from 'node:path'
 
 import { PICKERS, collect } from '../src/pickers.js'
 import { fetchAllPosts, fetchPost } from '../src/naver.js'
-import { parsePlace } from '../src/place.js'
+import { parsePlace, googleMapUrl, coordsFromGoogle } from '../src/place.js'
 import { openDb, savePick, placeOf, dropOthers, digest } from '../src/db.js'
 
 const data = join(import.meta.dirname, '../data')
 const show = (text) => process.stdout.write(`\r\x1b[K${text}`)
+
+// 구글맵 단축 링크는 좌표가 없다. 펼쳐야 나온다. 리다이렉트 주소만 읽고 본문은 안 받는다.
+async function expand(url) {
+  const response = await fetch(url, { redirect: 'manual', headers: { 'User-Agent': 'Mozilla/5.0' } })
+  return response.headers.get('location')
+}
+
+// 픽커가 붙인 장소를 읽는다. 네이버 장소가 먼저, 없으면 구글맵을 펼친다.
+async function placeIn(html) {
+  const place = parsePlace(html)
+  if (place) return place
+
+  const gmap = googleMapUrl(html)
+  return gmap ? coordsFromGoogle(await expand(gmap)) : null
+}
 
 const db = openDb(join(data, 'picks.db'))
 
@@ -25,7 +40,7 @@ for (const picker of PICKERS.filter((picker) => picker.read)) {
     // 장소는 한 번만 받는다. 규칙을 고쳐 다시 돌려도 본문을 또 받지 않는다.
     let place = placeOf(db, pick.link)
     if (place === undefined) {
-      place = parsePlace(await fetchPost(pick.link))
+      place = await placeIn(await fetchPost(pick.link))
       fetched++
     }
 
