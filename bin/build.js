@@ -3,7 +3,9 @@ import { join } from 'node:path'
 
 import { PICKERS, collect } from '../src/pickers.js'
 import { fetchAllPosts, fetchPost } from '../src/naver.js'
-import { parsePlace, googleMapUrl, coordsFromGoogle } from '../src/place.js'
+import {
+  parsePlace, googleMapUrl, coordsFromGoogle, naverMapMid, coordsFromMashup,
+} from '../src/place.js'
 import { openDb, savePick, placeOf, dropOthers, digest } from '../src/db.js'
 
 const data = join(import.meta.dirname, '../data')
@@ -15,13 +17,21 @@ async function expand(url) {
   return response.headers.get('location')
 }
 
-// 픽커가 붙인 장소를 읽는다. 네이버 장소가 먼저, 없으면 구글맵을 펼친다.
+async function fetchText(url) {
+  const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+  return response.text()
+}
+
+// 픽커가 붙인 장소를 읽는다. 네이버 장소 → 구글맵 → 구형 지도 위젯 순으로 본다.
 async function placeIn(html) {
   const place = parsePlace(html)
   if (place) return place
 
   const gmap = googleMapUrl(html)
-  return gmap ? coordsFromGoogle(await expand(gmap)) : null
+  if (gmap) return coordsFromGoogle(await expand(gmap))
+
+  const mid = naverMapMid(html)
+  return mid ? coordsFromMashup(await fetchText(mid)) : null
 }
 
 const db = openDb(join(data, 'picks.db'))

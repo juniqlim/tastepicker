@@ -95,7 +95,8 @@ export function placeOf(db, link) {
   const row = db
     .prepare('SELECT place_id, place_name, address, lat, lng, tel FROM pick WHERE link = ?')
     .get(link)
-  if (!row || row.place_id === null) return undefined
+  // 구형 지도 위젯과 구글맵은 좌표만 준다. 장소 ID가 없어도 받아둔 것이다.
+  if (!row || row.lat === null) return undefined
 
   return {
     placeId: row.place_id,
@@ -127,7 +128,7 @@ export function allPicks(db) {
     levelBy: row.level_by,
     visited: row.visited,
     link: row.link,
-    place: row.place_id === null ? null : {
+    place: row.lat === null ? null : {
       placeId: row.place_id,
       name: row.place_name,
       address: row.address,

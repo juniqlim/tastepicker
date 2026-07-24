@@ -104,3 +104,31 @@ test('픽이 바뀌면 지문도 바뀐다', () => {
 
   assert.notEqual(digest(db), 처음)
 })
+
+const 좌표만 = {
+  picker: 'symin67',
+  name: '계미산장',
+  note: '',
+  rating: null,
+  level: null,
+  levelBy: null,
+  link: 'https://blog.naver.com/symin67/222743367601',
+  // 구형 지도 위젯은 좌표만 준다. 장소 ID도 주소도 없다.
+  place: { placeId: null, name: null, address: null, lat: 37.5765811, lng: 126.9736747, tel: null },
+}
+
+test('장소 ID가 없어도 좌표가 있으면 장소로 본다', () => {
+  const db = openDb(':memory:')
+
+  savePick(db, 좌표만)
+
+  assert.equal(allPicks(db)[0].place.lat, 37.5765811)
+})
+
+test('좌표를 받아둔 글은 다시 받지 않는다', () => {
+  const db = openDb(':memory:')
+
+  savePick(db, 좌표만)
+
+  assert.notEqual(placeOf(db, 좌표만.link), undefined)
+})

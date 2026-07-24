@@ -26,11 +26,15 @@ const picks = allPicks(db).filter((pick) => pick.place && pick.picker !== 'juniq
  * 한 가게를 여러 픽커가, 또 같은 픽커가 여러 번 쓰기 때문에
  * 픽마다 핀을 찍으면 같은 자리에 겹쳐서 하나만 눌린다.
  */
+// 장소 ID로 묶는다. 구형 지도 위젯과 구글맵은 ID를 안 줘서 그때는 좌표로 묶는다.
+const keyOf = (place) => place.placeId ?? `${place.lat},${place.lng}`
+
 const places = new Map()
 for (const pick of picks) {
-  const place = places.get(pick.place.placeId) ?? { ...pick.place, picks: [] }
+  const key = keyOf(pick.place)
+  const place = places.get(key) ?? { ...pick.place, picks: [] }
   place.picks.push(pick)
-  places.set(pick.place.placeId, place)
+  places.set(key, place)
 }
 
 const spots = [...places.values()]

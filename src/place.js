@@ -37,6 +37,28 @@ export function googleMapUrl(html) {
 }
 
 /**
+ * 오래된 글은 구형 지도 위젯(mashup iframe)을 붙인다. 그 주소를 뽑는다.
+ * 주소에 좌표는 없고 mid 만 있다. 열어야 좌표가 나온다(coordsFromMashup).
+ */
+export function naverMapMid(html) {
+  const found = decode(html).match(
+    /https:\/\/mashup\.map\.naver\.com\/view\.nhn\?mid=[\w%@]+&type=total/,
+  )
+  return found ? found[0] : null
+}
+
+/**
+ * mashup 지도 페이지에서 좌표를 읽는다. 정적 지도 이미지의 'center=경도,위도' 가 장소다.
+ * 좌표만 있고 상호·주소는 없다. 상호는 픽 제목에 이미 있다.
+ */
+export function coordsFromMashup(html) {
+  const found = html.match(/center=([\d.]+),([\d.]+)/)
+  if (!found) return null
+
+  return { lat: Number(found[2]), lng: Number(found[1]) }
+}
+
+/**
  * 펼친 구글맵 주소에서 장소 좌표를 읽는다.
  * '!3d위도!4d경도' 가 장소의 좌표다. '@중심,중심' 은 지도 중심이라 덜 정확하다.
  */

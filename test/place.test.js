@@ -53,3 +53,26 @@ test('펼친 구글맵 주소에서 장소 좌표를 읽는다', () => {
 test('좌표가 없는 주소는 비운다', () => {
   assert.equal(coordsFromGoogle('https://www.google.com/maps'), null)
 })
+
+import { naverMapMid, coordsFromMashup } from '../src/place.js'
+
+test('구형 네이버 지도 iframe에서 mid 주소를 뽑는다', () => {
+  const url = naverMapMid(fixture('post-mashup'))
+
+  assert.match(url, /^https:\/\/mashup\.map\.naver\.com\/view\.nhn\?mid=[\w%@]+&type=total$/)
+})
+
+test('네이버 장소만 붙인 글엔 iframe mid가 없다', () => {
+  assert.equal(naverMapMid(fixture('post-place')), null)
+})
+
+test('mashup 지도 페이지에서 좌표를 읽는다', () => {
+  const html = '<img src="https://simg.pstatic.net/static.map/v2/map/staticmap.bin' +
+    '?crs=EPSG:4326&scale=2&format=png&w=400&h=300&center=126.9736747,37.5765811&level=17&markers=type:t">'
+
+  assert.deepEqual(coordsFromMashup(html), { lat: 37.5765811, lng: 126.9736747 })
+})
+
+test('좌표가 없는 mashup 페이지는 비운다', () => {
+  assert.equal(coordsFromMashup('<html>no map</html>'), null)
+})
