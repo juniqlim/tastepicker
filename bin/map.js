@@ -105,8 +105,8 @@ const html = `<!doctype html>
   .pop em { color:#1971c2; font-style:normal; font-weight:600 }
   .pop .addr { color:#868e96; font-size:12px }
   #bar select { font:inherit; padding:2px 4px; border:1px solid #dee2e6; border-radius:4px }
-  #bar button { font:inherit; padding:1px 8px; border:1px solid #dee2e6; border-radius:4px;
-                background:#fff; color:#495057; cursor:pointer }
+  #bar button { width:18px; height:18px; padding:0; border:1px solid #dee2e6; border-radius:4px;
+                background:#fff; color:#868e96; font-size:10px; line-height:1; cursor:pointer }
   #pickers.off { display:none }
   /* 폭은 가장 긴 줄에 맞춘다. 짧은 이름만 있을 때 빈자리를 차지할 이유가 없다. */
   #list { position:absolute; z-index:500; top:10px; right:10px; bottom:10px;
@@ -123,7 +123,11 @@ const html = `<!doctype html>
   #list .note { color:#868e96; font-size:12px }
 </style>
 <div id="bar">
-  <div class="row"><a>픽커</a> <button id="fold" type="button">접기</button></div>
+  <div class="row"><a>픽커</a>
+    <button id="all" type="button" title="모두 켜기">☑</button>
+    <button id="none" type="button" title="모두 끄기">☐</button>
+    <button id="fold" type="button" title="접기">▾</button>
+  </div>
   <div id="pickers">
     <div class="row" id="mine"></div>
     ${legend}
@@ -383,7 +387,7 @@ const HIDDEN = 'tastepicker:hidden'
 const hidden = new Set(JSON.parse(localStorage.getItem(HIDDEN) || '[]'))
 
 function bindBoxes() {
-  for (const box of document.querySelectorAll('#bar input')) {
+  for (const box of document.querySelectorAll('#pickers input')) {
     const key = box.dataset.layer
 
     if (hidden.has(key)) {
@@ -400,6 +404,22 @@ function bindBoxes() {
     }
   }
 }
+
+// 픽커가 여덟이라 하나씩 끄면 손이 많이 간다. 한 픽커만 보려면 다 끄고 하나만 켜는 쪽이 빠르다.
+const setAll = (on) => {
+  for (const box of document.querySelectorAll('#pickers input')) {
+    const key = box.dataset.layer
+    box.checked = on
+    on ? hidden.delete(key) : hidden.add(key)
+    layers[key] && (on ? layers[key].show() : layers[key].hide())
+  }
+
+  localStorage.setItem(HIDDEN, JSON.stringify([...hidden]))
+  drawList()
+}
+
+document.getElementById('all').onclick = () => setAll(true)
+document.getElementById('none').onclick = () => setAll(false)
 
 bindBoxes()
 // 내 평가는 아직 보이지 않게 둔다. 가게를 더 골라 담은 뒤에 켠다.
@@ -463,9 +483,11 @@ const FOLD = 'tastepicker:fold'
 const pickers = document.getElementById('pickers')
 const fold = document.getElementById('fold')
 
+// 화살표만 둔다. 어느 쪽으로 열리는지 보이면 글자는 없어도 안다.
 const showFold = (folded) => {
   pickers.classList.toggle('off', folded)
-  fold.textContent = folded ? '펴기' : '접기'
+  fold.textContent = folded ? '▸' : '▾'
+  fold.title = folded ? '펴기' : '접기'
 }
 
 showFold(localStorage.getItem(FOLD) === 'on')
