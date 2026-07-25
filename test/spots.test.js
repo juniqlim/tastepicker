@@ -24,6 +24,45 @@ test('장소 ID가 없으면 좌표로 묶는다', () => {
   assert.equal(spots.length, 1)
 })
 
+test('장소 ID가 없어도 같은 이름이 가까이 있으면 한 집이다', () => {
+  const 근처 = (link, lat, lng) =>
+    픽({ link, place: { placeId: null, name: null, address: null, lat, lng } })
+  // 글마다 좌표가 몇십 미터씩 어긋난다
+  const spots = toSpots([근처('a', 37.4905, 126.9265), 근처('b', 37.4902, 126.9260)])
+
+  assert.equal(spots.length, 1)
+  assert.equal(spots[0].picks.length, 2)
+})
+
+test('이름이 같아도 멀면 다른 집이다', () => {
+  const 먼곳 = (link, lat) =>
+    픽({ link, place: { placeId: null, name: null, address: null, lat, lng: 127 } })
+
+  assert.equal(toSpots([먼곳('a', 37.49), 먼곳('b', 37.51)]).length, 2)
+})
+
+test('장소 ID로 잡은 집에 ID 없는 픽을 붙인다', () => {
+  const 아이디 = 픽({ link: 'a' })
+  const 좌표만 = 픽({
+    link: 'b',
+    place: { placeId: null, name: null, address: null, lat: 37.5001, lng: 127.0001 },
+  })
+  const spots = toSpots([좌표만, 아이디])
+
+  assert.equal(spots.length, 1)
+  // 상호와 주소를 가진 쪽이 가게의 기준이 된다
+  assert.equal(spots[0].placeId, '1')
+  assert.equal(spots[0].region, '서울 마포구')
+})
+
+test('뒤에 덧붙은 이름도 같은 집으로 본다', () => {
+  const 이름 = (link, name, lat) =>
+    픽({ link, name, place: { placeId: null, name: null, address: null, lat, lng: 127 } })
+  const spots = toSpots([이름('a', '신기루 황소곱창', 37.5), 이름('b', '신기루황소곱창구이', 37.5002)])
+
+  assert.equal(spots.length, 1)
+})
+
 test('주소에서 지역을 붙인다', () => {
   assert.equal(toSpots([픽({})])[0].region, '서울 마포구')
 })
