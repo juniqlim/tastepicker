@@ -228,6 +228,7 @@ const maps = {
         }
       },
       fitBounds: coords => map.fitBounds(coords, { padding: [40, 40] }),
+      setView: (lat, lng, zoom) => map.setView([lat, lng], zoom),
       has: (lat, lng) => map.getBounds().contains([lat, lng]),
       onStill: run => map.on('moveend', run)
     }
@@ -328,6 +329,11 @@ const maps = {
         const box = new naver.maps.LatLngBounds()
         for (const [lat, lng] of coords) box.extend(new naver.maps.LatLng(lat, lng))
         map.fitBounds(box, { top: 40, right: 40, bottom: 40, left: 40 })
+        draw()
+      },
+      setView(lat, lng, zoom) {
+        map.setCenter(new naver.maps.LatLng(lat, lng))
+        map.setZoom(zoom)
         draw()
       },
       has: (lat, lng) => map.getBounds().hasLatLng(new naver.maps.LatLng(lat, lng)),
@@ -608,7 +614,45 @@ const home = spots
   .map(s => [s.lat, s.lng])
   .filter(([lat, lng]) => lat > 33 && lat < 39 && lng > 124 && lng < 132)
 
-map.fitBounds(home.length ? home : spots.map(s => [s.lat, s.lng]))
+// 첫 화면은 목록도 함께 세운다. 지도가 멈췄다는 기별을 기다리면 첫 화면만 빈 목록으로 남는다.
+const fitHome = () => {
+  map.fitBounds(home.length ? home : spots.map(s => [s.lat, s.lng]))
+  drawList()
+}
+
+/**
+ * 있는 데서 가까운 집부터 보여준다. 전국을 펼쳐 봐야 어디를 갈지는 정해지지 않는다.
+ * 네이버 지도는 핀 하나가 DOM 하나라 전국을 펼치면 천이백 개를 붙이느라 한참 멈춘다.
+ * 동네 하나면 백 개 남짓이라 바로 뜬다.
+ */
+const NEARBY = 16
+
+// 픽이 없는 데서 열면 빈 화면이 된다. 해외에 있으면 그냥 전국을 편다.
+const inHome = (lat, lng) => lat > 33 && lat < 39 && lng > 124 && lng < 132
+
+// 물어보고 답이 없으면 기다리지 않는다. 대답할 마음이 없는 사람을 붙잡아 둘 이유가 없다.
+const WAIT = 1500
+
+if (navigator.geolocation) {
+  let answered = false
+  const answer = (run) => { answered || (answered = true, run()) }
+  const later = setTimeout(() => answer(fitHome), WAIT)
+
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => answer(() => {
+      clearTimeout(later)
+      if (!inHome(coords.latitude, coords.longitude)) return fitHome()
+
+      map.setView(coords.latitude, coords.longitude, NEARBY)
+      drawList()
+    }),
+    // 물어보길 거절해도 지도는 떠야 한다.
+    () => answer(() => { clearTimeout(later); fitHome() }),
+    { timeout: WAIT, maximumAge: 600000 },
+  )
+} else {
+  fitHome()
+}
 </script>
 `
 
