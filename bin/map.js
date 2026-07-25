@@ -17,6 +17,12 @@ const SUPABASE = {
 }
 if (!SUPABASE.url || !SUPABASE.key) throw new Error('SUPABASE_URL / SUPABASE_ANON_KEY 가 없다')
 
+/**
+ * 지도는 배경만 갈아 끼우는 게 아니라 API가 아예 다르다. 그래서 둘을 어댑터로 감싼다.
+ * 네이버 지도는 열쇠가 있어야 부를 수 있다. 없으면 고를 것이 하나뿐이라 고르는 자리도 두지 않는다.
+ */
+const NAVER_KEY = process.env.NAVER_MAP_KEY ?? ''
+
 const db = openDb(join(import.meta.dirname, '../data/picks.db'))
 
 // 내 평가는 Supabase에 산다. 블로그 픽만 HTML에 박는다.
@@ -114,14 +120,23 @@ const html = `<!doctype html>
   ${legend}
   <div class="row">
     <a>지역</a>
-    <select id="region"><option value="">고르면 그곳만 봅니다</option>${regionOptions(regions)}</select>
+    <select id="region"><option value="">고르면 그리로 갑니다</option>${regionOptions(regions)}</select>
+    <label><input type="checkbox" id="seeList"> 이 화면의 가게</label>
   </div>
+  ${NAVER_KEY ? `<div class="row">
+    <a>지도</a>
+    <select id="engine">
+      <option value="osm">OpenStreetMap</option>
+      <option value="naver">네이버 지도</option>
+    </select>
+  </div>` : ''}
   <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.
     <a href="/list" style="color:#1971c2">목록으로 →</a></div>
 </div>
 <div id="list"></div>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+${NAVER_KEY ? `<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${NAVER_KEY}"></script>` : ''}
 <script>
 const SUPABASE = ${JSON.stringify(SUPABASE)}
 const spots = ${JSON.stringify(spots)}
@@ -130,10 +145,98 @@ const fadeOf = ${JSON.stringify(fadeOf)}
 const colorOf = ${JSON.stringify(Object.fromEntries(PICKERS.map((p, i) => [p.id, COLORS[i % COLORS.length]])))}
 const pickerName = ${JSON.stringify(Object.fromEntries(PICKERS.map((p) => [p.id, p.name])))}
 
-const map = L.map('map')
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap'
-}).addTo(map)
+/**
+ * 지도는 배경만 다른 게 아니라 API가 아예 다르다. 쓰는 것만 같은 이름으로 감싼다.
+ * 켜고 끄는 단위는 마커 묶음 하나다. 픽커의 등급 하나가 묶음 하나다.
+ */
+const dot = (color, fade) =>
+  '<div style="width:13px;height:13px;border-radius:50%;border:1.5px solid #fff;' +
+  'background:' + color + ';opacity:' + fade + '"></div>'
+
+const maps = {
+  osm() {
+    const map = L.map('map')
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map)
+
+    return {
+      group() {
+        const group = L.layerGroup().addTo(map)
+        return {
+          show: () => group.addTo(map),
+          hide: () => group.remove(),
+          add(pin) {
+            const marker = L.circleMarker([pin.lat, pin.lng], {
+              radius: 6, weight: 1.5, color: '#fff',
+              fillColor: pin.color, fillOpacity: pin.fade
+            }).bindPopup(pin.popup)
+            group.addLayer(marker)
+
+            return { open: () => { map.setView([pin.lat, pin.lng], 17); marker.openPopup() } }
+          }
+        }
+      },
+      fitBounds: coords => map.fitBounds(coords, { padding: [40, 40] }),
+      has: (lat, lng) => map.getBounds().contains([lat, lng]),
+      onStill: run => map.on('moveend', run)
+    }
+  },
+
+  naver() {
+    const map = new naver.maps.Map('map')
+    // 네이버에는 묶음이 없어서 마커를 들고 있다가 하나씩 붙였다 뗀다.
+    // 말풍선도 하나만 두고 내용을 갈아 끼운다. 여럿을 띄우면 겹쳐서 못 읽는다.
+    const bubble = new naver.maps.InfoWindow({ maxWidth: 320, borderColor: '#dee2e6' })
+
+    return {
+      group() {
+        const markers = []
+        let on = true
+
+        return {
+          show() { on = true; for (const marker of markers) marker.setMap(map) },
+          hide() { on = false; for (const marker of markers) marker.setMap(null) },
+          add(pin) {
+            const at = new naver.maps.LatLng(pin.lat, pin.lng)
+            const marker = new naver.maps.Marker({
+              position: at, map: on ? map : null,
+              icon: { content: dot(pin.color, pin.fade), anchor: new naver.maps.Point(7, 7) }
+            })
+            const show = () => { bubble.setContent(pin.popup); bubble.open(map, marker) }
+            naver.maps.Event.addListener(marker, 'click', show)
+            markers.push(marker)
+
+            return { open() { map.setCenter(at); map.setZoom(17); show() } }
+          }
+        }
+      },
+      fitBounds(coords) {
+        const box = new naver.maps.LatLngBounds()
+        for (const [lat, lng] of coords) box.extend(new naver.maps.LatLng(lat, lng))
+        map.fitBounds(box, { top: 40, right: 40, bottom: 40, left: 40 })
+      },
+      has: (lat, lng) => map.getBounds().hasLatLng(new naver.maps.LatLng(lat, lng)),
+      onStill: run => naver.maps.Event.addListener(map, 'idle', run)
+    }
+  }
+}
+
+// 고른 지도는 이 브라우저에 남는다. 열쇠가 없으면 네이버는 아예 고를 수 없다.
+const ENGINES = ${JSON.stringify(NAVER_KEY ? ['osm', 'naver'] : ['osm'])}
+const ENGINE = 'tastepicker:engine'
+const engine = ENGINES.includes(localStorage.getItem(ENGINE)) ? localStorage.getItem(ENGINE) : 'osm'
+const map = maps[engine]()
+
+const pickEngine = document.getElementById('engine')
+if (pickEngine) {
+  pickEngine.value = engine
+  // 지도를 바꾸면 마커도 말풍선도 다 다시 만들어야 해서 그냥 다시 연다.
+  pickEngine.onchange = () => {
+    localStorage.setItem(ENGINE, pickEngine.value)
+    location.reload()
+  }
+}
 
 const layers = {}
 const review = pick =>
@@ -151,8 +254,9 @@ const popupOf = spot =>
   '<ul>' + spot.picks.map(review).join('') + '</ul>' +
   '<a href="https://map.naver.com/p/entry/place/' + spot.placeId + '" target="_blank">네이버 지도</a></div>'
 
-// 목록에서 가게를 고르면 그 핀을 열어야 해서 가게마다 마커 하나를 기억해 둔다.
-const markerOf = new Map()
+// 목록에서 가게를 고르면 그 핀을 열어야 해서 가게마다 마커를 기억해 둔다.
+// 한 가게에 마커가 여럿이다. 어느 픽커를 껐는지에 따라 열 수 있는 마커가 달라진다.
+const markersOf = new Map()
 
 for (const spot of spots) {
   const popup = popupOf(spot)
@@ -160,13 +264,19 @@ for (const spot of spots) {
   // 한 가게를 여러 픽커가 쓰면 마커도 그만큼 겹쳐 둔다. 필터를 켜고 끌 수 있어야 한다.
   for (const band of new Set(spot.picks.map(p => p.picker + ':' + (bandOf[p.rating] || 'plain')))) {
     const [picker, level] = band.split(':')
-    const marker = L.circleMarker([spot.lat, spot.lng], {
-      radius: 6, weight: 1.5, color: '#fff',
-      fillColor: colorOf[picker], fillOpacity: fadeOf[level]
-    }).bindPopup(popup)
-    ;(layers[band] ||= L.layerGroup().addTo(map)).addLayer(marker)
-    markerOf.has(spot) || markerOf.set(spot, marker)
+    const marker = (layers[band] ||= map.group()).add({
+      lat: spot.lat, lng: spot.lng, popup,
+      color: colorOf[picker], fade: fadeOf[level]
+    })
+    markersOf.has(spot) || markersOf.set(spot, [])
+    markersOf.get(spot).push({ band, marker })
   }
+}
+
+/** 꺼진 픽커의 핀은 열어도 말풍선이 안 뜬다. 켜져 있는 핀을 찾아 연다. */
+function openSpot(spot) {
+  const on = (markersOf.get(spot) || []).find(one => !hidden.has(one.band))
+  on && on.marker.open()
 }
 
 /**
@@ -180,7 +290,7 @@ async function loadMine() {
   if (!res.ok) return
 
   const spotOf = new Map(spots.map(s => [s.placeId, s]))
-  const layer = L.layerGroup().addTo(map)
+  const layer = map.group()
   layers['juniqlim:mine'] = layer
   let count = 0
 
@@ -192,9 +302,10 @@ async function loadMine() {
       picker: 'juniqlim', name: row.place_name, note: row.note,
       rating: row.level + '점', visited: row.visited, link: null
     })
-    layer.addLayer(L.circleMarker([spot.lat, spot.lng], {
-      radius: 6, weight: 1.5, color: '#fff', fillColor: colorOf.juniqlim, fillOpacity: 1
-    }).bindPopup(popupOf(spot)))
+    layer.add({
+      lat: spot.lat, lng: spot.lng, popup: popupOf(spot),
+      color: colorOf.juniqlim, fade: 1
+    })
     count++
   }
 
@@ -202,6 +313,8 @@ async function loadMine() {
   row.innerHTML = '<b style="color:' + colorOf.juniqlim + '">●</b> <a>juniqlim</a>' +
     '<label><input type="checkbox" data-layer="juniqlim:mine" checked> <span>' + count + '</span></label>'
   bindBoxes()
+  // 내 평가가 붙으면 목록의 픽커 이름도 달라진다.
+  drawList()
 }
 
 // 고른 픽커는 이 브라우저에 남는다. 켠 것이 아니라 끈 것을 적는다.
@@ -215,56 +328,82 @@ function bindBoxes() {
 
     if (hidden.has(key)) {
       box.checked = false
-      layers[key] && layers[key].remove()
+      layers[key] && layers[key].hide()
     }
 
     box.onchange = () => {
       const layer = layers[key]
-      box.checked ? layer.addTo(map) : layer.remove()
+      box.checked ? layer.show() : layer.hide()
       box.checked ? hidden.delete(key) : hidden.add(key)
       localStorage.setItem(HIDDEN, JSON.stringify([...hidden]))
+      drawList()
     }
   }
 }
 
 bindBoxes()
-loadMine()
+// 내 평가는 아직 보이지 않게 둔다. 가게를 더 골라 담은 뒤에 켠다.
+// loadMine()
 
-// 지역을 고르면 그곳 가게만 목록으로 보이고 지도도 그리로 옮긴다.
-// 픽커를 고르는 사람에게는 '어디' 도 고르는 기준이다.
+/**
+ * 목록은 지금 화면에 찍힌 핀을 그대로 옮긴다. 지도를 옮기면 목록도 따라온다.
+ * 핀을 끈 픽커의 가게는 목록에서도 뺀다. 핀은 없는데 목록에 남으면 두 화면이 어긋난다.
+ */
 const listBox = document.getElementById('list')
+const seeList = document.getElementById('seeList')
+const SEEN = 'tastepicker:seelist'
 
-document.getElementById('region').onchange = (event) => {
-  const region = event.target.value
-  if (!region) { listBox.classList.remove('on'); return }
+const onMap = spot => spot.picks.some(pick =>
+  pick.picker !== 'juniqlim' && !hidden.has(pick.picker + ':' + (bandOf[pick.rating] || 'plain')))
 
-  // spots 는 겹치는 집 순으로 이미 정렬돼 있다.
-  // 시도만 골랐으면 그 아래를 다 받는다. '서울' 은 '서울 마포구' 를 품는다.
-  const here = spots.filter(spot =>
-    spot.region === region || (spot.region || '').startsWith(region + ' '))
+function drawList() {
+  if (!seeList.checked) return
 
-  listBox.classList.add('on')
-  listBox.innerHTML = '<h3>' + region + ' <span style="color:#adb5bd">' + here.length + '곳</span></h3>'
+  // spots 는 겹치는 집 순으로 이미 정렬돼 있다. 걸러내도 순서는 지켜진다.
+  const here = spots.filter(spot => onMap(spot) && map.has(spot.lat, spot.lng))
 
-  map.fitBounds(here.map(spot => [spot.lat, spot.lng]), { padding: [40, 40] })
+  listBox.innerHTML = '<h3>이 화면 <span style="color:#adb5bd">' + here.length + '곳</span></h3>'
 
   for (const spot of here.slice(0, 200)) {
     const item = document.createElement('a')
     item.innerHTML = '<b>' + (spot.name || spot.picks[0].name) + '</b>' +
       '<div class="note">' + [...new Set(spot.picks.map(p => pickerName[p.picker]))].join(', ') +
       (spot.picks.length > 1 ? ' · ' + spot.picks.length + '번' : '') + '</div>'
-    item.onclick = () => {
-      map.setView([spot.lat, spot.lng], 17)
-      markerOf.get(spot) && markerOf.get(spot).openPopup()
-    }
+    item.onclick = () => openSpot(spot)
     listBox.append(item)
   }
 
-  // 다 그리면 무겁다. 겹치는 집부터 보여주고 나머지는 지도에서 찾게 둔다.
+  // 다 그리면 무겁다. 겹치는 집부터 보여주고 나머지는 더 다가가서 보게 둔다.
   if (here.length > 200) {
     listBox.insertAdjacentHTML('beforeend',
-      '<div class="note" style="padding:8px 0">겹치는 집부터 200곳만 보입니다. 나머지는 지도에 있습니다.</div>')
+      '<div class="note" style="padding:8px 0">겹치는 집부터 200곳만 보입니다. 더 다가가면 다 보입니다.</div>')
   }
+}
+
+// 목록을 여는지도 이 브라우저에 남는다. 지도만 보고 싶은 사람도 있다.
+seeList.checked = localStorage.getItem(SEEN) === 'on'
+listBox.classList.toggle('on', seeList.checked)
+
+seeList.onchange = () => {
+  localStorage.setItem(SEEN, seeList.checked ? 'on' : 'off')
+  listBox.classList.toggle('on', seeList.checked)
+  drawList()
+}
+
+map.onStill(drawList)
+
+// 지역을 고르면 지도를 그리로 옮긴다. 목록은 화면을 따라오므로 저절로 그 지역이 된다.
+// 픽커를 고르는 사람에게는 '어디' 도 고르는 기준이다.
+document.getElementById('region').onchange = (event) => {
+  const region = event.target.value
+  if (!region) return
+
+  // 시도만 골랐으면 그 아래를 다 받는다. '서울' 은 '서울 마포구' 를 품는다.
+  const here = spots.filter(spot =>
+    spot.region === region || (spot.region || '').startsWith(region + ' '))
+  if (!here.length) return
+
+  map.fitBounds(here.map(spot => [spot.lat, spot.lng]))
 }
 
 // 해외 픽이 섞여 있어 전체로 맞추면 세계 지도가 된다. 국내 픽 기준으로 연다.
@@ -272,7 +411,7 @@ const home = spots
   .map(s => [s.lat, s.lng])
   .filter(([lat, lng]) => lat > 33 && lat < 39 && lng > 124 && lng < 132)
 
-map.fitBounds(home.length ? home : spots.map(s => [s.lat, s.lng]), { padding: [40, 40] })
+map.fitBounds(home.length ? home : spots.map(s => [s.lat, s.lng]))
 </script>
 `
 
