@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
 import { toSpots, byWeight, toRegions, regionOptions } from '../src/spots.js'
+import { pickerColors } from '../src/colors.js'
 import { openDb, allPicks } from '../src/db.js'
 
 try {
@@ -41,7 +42,15 @@ const regions = toRegions(spots)
  * 등급은 픽커마다 다르다. RockHer는 아홉 단계를 쓰고 정직한 청년은 매기지 않는다.
  * 그래서 색은 모든 픽이 가진 픽커로 나누고, 등급은 진하기로만 보인다.
  */
-const COLORS = ['#d6336c', '#e8590c', '#1971c2', '#2f9e44', '#7048e8', '#0c8599']
+// 내 평가는 픽커와 다른 축이다. 픽커의 색을 하나 뺏어 쓸 자리가 아니라 검정으로 둔다.
+const MINE = '#343a40'
+
+const blogs = PICKERS.filter((picker) => picker.id !== 'juniqlim')
+const palette = pickerColors(blogs.length)
+const colorOf = {
+  juniqlim: MINE,
+  ...Object.fromEntries(blogs.map((picker, index) => [picker.id, palette[index]])),
+}
 
 const BANDS = [
   { key: 'best', label: '강추', fade: 1, grades: ['강추'] },
@@ -83,7 +92,7 @@ const legend = PICKERS.map((picker, index) => {
     ? `<a href="${picker.url}" target="_blank">${picker.name}</a>`
     : `<a>${picker.name}</a>`
 
-  return `<div class="row"><b style="color:${COLORS[index % COLORS.length]}">●</b> ${who} ${boxes}</div>`
+  return `<div class="row"><b style="color:${colorOf[picker.id]}">●</b> ${who} ${boxes}</div>`
 }).join('')
 
 const html = `<!doctype html>
@@ -184,7 +193,7 @@ const bandOf = ${JSON.stringify(bandOf)}
 const fadeOf = ${JSON.stringify(fadeOf)}
 // 픽이 어느 칸에 드는지 세는 쪽과 그리는 쪽이 달라선 안 된다. 함수를 그대로 옮겨 심는다.
 const layerOf = ${layerOf}
-const colorOf = ${JSON.stringify(Object.fromEntries(PICKERS.map((p, i) => [p.id, COLORS[i % COLORS.length]])))}
+const colorOf = ${JSON.stringify(colorOf)}
 const pickerName = ${JSON.stringify(Object.fromEntries(PICKERS.map((p) => [p.id, p.name])))}
 
 /**

@@ -58,6 +58,7 @@ src/naver.js     글 목록과 본문 받아오기
 src/rss.js       RSS → 글 목록
 src/pickers.js   글 → 픽 (픽커마다 규칙 하나)
 src/place.js     본문 → 픽커가 붙인 장소
+src/colors.js    픽커 수에 맞춰 색을 만든다
 src/db.js        SQLite 저장
 ```
 
