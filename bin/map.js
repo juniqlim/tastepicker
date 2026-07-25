@@ -108,11 +108,15 @@ const html = `<!doctype html>
   #bar button { font:inherit; padding:1px 8px; border:1px solid #dee2e6; border-radius:4px;
                 background:#fff; color:#495057; cursor:pointer }
   #pickers.off { display:none }
-  #list { position:absolute; z-index:500; top:10px; right:10px; bottom:10px; width:290px;
+  /* 폭은 가장 긴 줄에 맞춘다. 짧은 이름만 있을 때 빈자리를 차지할 이유가 없다. */
+  #list { position:absolute; z-index:500; top:10px; right:10px; bottom:10px;
+          width:max-content; min-width:180px; max-width:320px;
           background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25);
           overflow-y:auto; padding:10px 12px; display:none }
   #list.on { display:block }
   #list h3 { margin:0 0 8px; font-size:14px }
+  #find { width:100%; box-sizing:border-box; font:inherit; margin-bottom:8px;
+          padding:4px 6px; border:1px solid #dee2e6; border-radius:4px }
   #list a { display:block; padding:6px 0; border-top:1px solid #f1f3f5; color:#212529;
             text-decoration:none; cursor:pointer }
   #list a:hover { background:#f8f9fa }
@@ -139,7 +143,11 @@ const html = `<!doctype html>
   <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.
     <a href="/list" style="color:#1971c2">목록으로 →</a></div>
 </div>
-<div id="list"></div>
+<div id="list">
+  <input id="find" placeholder="가게 이름으로 찾기" autocomplete="off">
+  <h3 id="head"></h3>
+  <div id="rows"></div>
+</div>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 ${NAVER_KEY ? `<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${NAVER_KEY}"></script>` : ''}
@@ -403,34 +411,51 @@ bindBoxes()
  */
 const listBox = document.getElementById('list')
 const seeList = document.getElementById('seeList')
+const head = document.getElementById('head')
+const rows = document.getElementById('rows')
+const find = document.getElementById('find')
 const SEEN = 'tastepicker:seelist'
 
 const onMap = spot => spot.picks.some(pick =>
   pick.picker !== 'juniqlim' && !hidden.has(pick.picker + ':' + (bandOf[pick.rating] || 'plain')))
 
+// 픽커마다 가게를 달리 적는다. 어느 표기로 찾아도 걸리게 다 본다.
+const namesOf = spot => [spot.name, ...spot.picks.map(pick => pick.name)].join(' ').toLowerCase()
+
 function drawList() {
   if (!seeList.checked) return
 
-  // spots 는 겹치는 집 순으로 이미 정렬돼 있다. 걸러내도 순서는 지켜진다.
-  const here = spots.filter(spot => onMap(spot) && map.has(spot.lat, spot.lng))
+  const query = find.value.trim().toLowerCase()
 
-  listBox.innerHTML = '<h3>이 화면 <span style="color:#adb5bd">' + here.length + '곳</span></h3>'
+  /**
+   * 이름으로 찾을 때는 화면에 매이지 않는다. 이름을 아는 사람은 그 집이 어디 있는지 모른다.
+   * spots 는 겹치는 집 순으로 이미 정렬돼 있다. 걸러내도 순서는 지켜진다.
+   */
+  const found = spots.filter(spot => onMap(spot) &&
+    (query ? namesOf(spot).includes(query) : map.has(spot.lat, spot.lng)))
 
-  for (const spot of here.slice(0, 200)) {
+  head.innerHTML = (query ? '찾은 가게' : '이 화면') +
+    ' <span style="color:#adb5bd">' + found.length + '곳</span>'
+  rows.innerHTML = ''
+
+  for (const spot of found.slice(0, 200)) {
     const item = document.createElement('a')
     item.innerHTML = '<b>' + (spot.name || spot.picks[0].name) + '</b>' +
       '<div class="note">' + [...new Set(spot.picks.map(p => pickerName[p.picker]))].join(', ') +
       (spot.picks.length > 1 ? ' · ' + spot.picks.length + '번' : '') + '</div>'
     item.onclick = () => openSpot(spot)
-    listBox.append(item)
+    rows.append(item)
   }
 
-  // 다 그리면 무겁다. 겹치는 집부터 보여주고 나머지는 더 다가가서 보게 둔다.
-  if (here.length > 200) {
-    listBox.insertAdjacentHTML('beforeend',
-      '<div class="note" style="padding:8px 0">겹치는 집부터 200곳만 보입니다. 더 다가가면 다 보입니다.</div>')
+  // 다 그리면 무겁다. 겹치는 집부터 보여주고 나머지는 좁혀서 보게 둔다.
+  if (found.length > 200) {
+    rows.insertAdjacentHTML('beforeend',
+      '<div class="note" style="padding:8px 0">겹치는 집부터 200곳만 보입니다. ' +
+      (query ? '이름을 더 적어 보세요.' : '더 다가가면 다 보입니다.') + '</div>')
   }
 }
+
+find.oninput = drawList
 
 // 픽커가 여덟이라 범례가 화면을 많이 먹는다. 접어 두고 쓸 수 있게 한다.
 // 접었는지도 브라우저에 남는다. 매번 접게 하면 접는 뜻이 없다.
