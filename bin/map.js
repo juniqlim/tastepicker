@@ -153,6 +153,7 @@ const html = `<!doctype html>
   <div class="row">
     <a>지역</a>
     <select id="region"><option value="">고르면 그리로 갑니다</option>${regionOptions(regions)}</select>
+    <button id="here" type="button" title="내가 있는 데로">◎</button>
     <label><input type="checkbox" id="seeList" checked> 이 화면의 가게</label>
   </div>
   ${NAVER_KEY ? `<div class="row">
@@ -276,12 +277,30 @@ const maps = {
       bubble.open(map, pin.marker)
     }
 
+    /**
+     * 멀리서 보면 핀이 서로 포개진다. 포개진 핀은 붙여도 보이지 않는데 값은 다 치른다.
+     * 그래서 화면을 핀 크기의 칸으로 나눠 한 칸에 하나만 붙인다. 다가가면 칸이 벌어져 다 보인다.
+     */
+    const GRID = 14
+
     const draw = () => {
       const box = map.getBounds()
+      const sw = box.getSW()
+      const ne = box.getNE()
+      const size = map.getSize()
+      const taken = new Set()
       let drawn = 0
 
+      // 앞이 겹치는 집이라, 한 칸에서 살아남는 것도 그쪽이다.
+      const cellOf = (at) =>
+        Math.floor((at.lng() - sw.lng()) / (ne.lng() - sw.lng()) * size.width / GRID) + ',' +
+        Math.floor((at.lat() - sw.lat()) / (ne.lat() - sw.lat()) * size.height / GRID)
+
       for (const pin of pins) {
-        if (pin.on && drawn < LIMIT && box.hasLatLng(pin.at)) {
+        const cell = pin.on && drawn < LIMIT && box.hasLatLng(pin.at) ? cellOf(pin.at) : null
+
+        if (cell !== null && !taken.has(cell)) {
+          taken.add(cell)
           attach(pin)
           drawn++
         } else if (pin.marker) {
@@ -610,11 +629,10 @@ document.getElementById('region').onchange = (event) => {
 }
 
 // 해외 픽이 섞여 있어 전체로 맞추면 세계 지도가 된다. 국내 픽 기준으로 연다.
-const home = spots
-  .map(s => [s.lat, s.lng])
-  .filter(([lat, lng]) => lat > 33 && lat < 39 && lng > 124 && lng < 132)
+const inHome = (lat, lng) => lat > 33 && lat < 39 && lng > 124 && lng < 132
+const home = spots.filter(s => inHome(s.lat, s.lng)).map(s => [s.lat, s.lng])
 
-// 첫 화면은 목록도 함께 세운다. 지도가 멈췄다는 기별을 기다리면 첫 화면만 빈 목록으로 남는다.
+// 지도를 옮기면 목록도 함께 세운다. 지도가 멈췄다는 기별을 기다리면 첫 화면만 빈 목록으로 남는다.
 const fitHome = () => {
   map.fitBounds(home.length ? home : spots.map(s => [s.lat, s.lng]))
   drawList()
@@ -628,27 +646,31 @@ const fitHome = () => {
 const NEARBY = 16
 
 // 픽이 없는 데서 열면 빈 화면이 된다. 해외에 있으면 그냥 전국을 편다.
-const inHome = (lat, lng) => lat > 33 && lat < 39 && lng > 124 && lng < 132
+const goHere = ({ coords }) => {
+  if (!inHome(coords.latitude, coords.longitude)) return fitHome()
+
+  map.setView(coords.latitude, coords.longitude, NEARBY)
+  drawList()
+}
 
 // 물어보고 답이 없으면 기다리지 않는다. 대답할 마음이 없는 사람을 붙잡아 둘 이유가 없다.
 const WAIT = 1500
+const askHere = (found, gaveUp) =>
+  navigator.geolocation.getCurrentPosition(found, gaveUp, { timeout: WAIT, maximumAge: 600000 })
+
+// 지도를 한참 옮기고 나면 있는 데로 돌아올 길이 필요하다.
+document.getElementById('here').onclick = () =>
+  navigator.geolocation ? askHere(goHere, () => {}) : fitHome()
 
 if (navigator.geolocation) {
   let answered = false
   const answer = (run) => { answered || (answered = true, run()) }
   const later = setTimeout(() => answer(fitHome), WAIT)
 
-  navigator.geolocation.getCurrentPosition(
-    ({ coords }) => answer(() => {
-      clearTimeout(later)
-      if (!inHome(coords.latitude, coords.longitude)) return fitHome()
-
-      map.setView(coords.latitude, coords.longitude, NEARBY)
-      drawList()
-    }),
-    // 물어보길 거절해도 지도는 떠야 한다.
+  // 물어보길 거절해도 지도는 떠야 한다.
+  askHere(
+    (at) => answer(() => { clearTimeout(later); goHere(at) }),
     () => answer(() => { clearTimeout(later); fitHome() }),
-    { timeout: WAIT, maximumAge: 600000 },
   )
 } else {
   fitHome()
