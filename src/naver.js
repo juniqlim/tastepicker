@@ -1,4 +1,4 @@
-import { parseRss } from './rss.js'
+import { parseRss, decode } from './rss.js'
 import { request } from './request.js'
 
 /** 네이버 블로그 RSS를 받아 글 목록으로 읽는다. 최근 50글까지만 실린다. */
@@ -23,8 +23,10 @@ async function fetchListPage(blogId, page) {
   return {
     total: Number(totalCount),
     posts: postList.map((post) => ({
-      title: decodeURIComponent(post.title.replaceAll('+', ' ')),
+      title: decode(decodeURIComponent(post.title.replaceAll('+', ' '))),
       link: `https://blog.naver.com/${blogId}/${post.logNo}`,
+      // 하위 카테고리로 잘게 나눈 픽커가 있어 묶음인 부모 번호를 쓴다.
+      categoryNo: post.parentCategoryNo,
     })),
   }
 }

@@ -37,7 +37,13 @@ async function placeIn(html) {
 const db = openDb(join(data, 'picks.db'))
 
 // 내 평가는 Supabase 에 있다. 여기서는 블로그 픽커만 훑는다.
-for (const picker of PICKERS.filter((picker) => picker.read)) {
+// 픽커를 새로 붙일 때는 그 픽커만 돌린다. 남의 서버라 천천히 부르므로 전체를 다시 훑으면 오래 걸린다.
+const only = process.argv.slice(2)
+const targets = PICKERS.filter(
+  (picker) => picker.read && (only.length === 0 || only.includes(picker.id)),
+)
+
+for (const picker of targets) {
   const posts = await fetchAllPosts(picker.id, (read, total) =>
     show(`${picker.name} 목록 ${read}/${total}`),
   )

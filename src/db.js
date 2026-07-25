@@ -47,6 +47,9 @@ function migrate(db) {
 
 export function openDb(path) {
   const db = new DatabaseSync(path)
+  // 픽커를 여러 명 따로 돌릴 수 있다. 남이 쓰는 중이면 기다렸다 쓴다.
+  // 글 하나 받는 데 몇 초씩 걸려서 겹칠 일은 드물고, 기다리면 지나간다.
+  db.exec('PRAGMA busy_timeout = 30000')
   db.exec(`CREATE TABLE IF NOT EXISTS pick (${COLUMNS})`)
   migrate(db)
   return db

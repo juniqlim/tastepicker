@@ -1,6 +1,7 @@
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", '#39': "'" }
 
-const decode = (text) =>
+/** 목록 API도 제목을 이렇게 escape 해서 보낸다. 가게명을 감싼 따옴표가 &#39; 로 온다. */
+export const decode = (text) =>
   text.replace(/&(#39|amp|lt|gt|quot|apos);/g, (whole, name) => ENTITIES[name] ?? whole)
 
 const stripTags = (text) => text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()

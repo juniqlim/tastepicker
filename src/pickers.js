@@ -103,7 +103,96 @@ export const PICKERS = [
       return { region, name, note, rating: null, level: null, levelBy: null }
     },
   },
+  {
+    id: 'ikky21',
+    name: '공대이끼',
+    url: 'https://blog.naver.com/ikky21',
+    // '[안양중앙시장] 순댓국은 기본, 소머리국밥까지 - 83순대국'
+    // 오먹산과 반대로 하이픈 뒤가 가게명이다. 지역만 대괄호에 넣는다.
+    // 하이픈이 없으면 집밥이나 시장 나들이 글이라 가게명을 집을 수 없다.
+    read({ title }) {
+      const found = title.match(/^\[([^\]]+)\]\s*(.+?)\s*[-–]\s*(.+)$/)
+      if (!found) return null
+
+      const [, region, note, name] = found
+      return {
+        region: region.replace(/\s*(맛집|술집|카페)$/, ''),
+        name, note, rating: null, level: null, levelBy: null,
+      }
+    },
+  },
+  {
+    id: 'mardukas',
+    name: '비밀이야',
+    url: 'https://blog.naver.com/mardukas',
+    // '[원대구탕] 삼각지 - 추억 속의 푸짐한 대구탕'
+    // 대괄호 안이 가게명이고 그 다음이 지역이다.
+    // 여행 글은 '[2025 나고야]' 처럼 연도로 열고 가게명을 한줄평 끝에 둔다. 규칙이 달라 받지 않는다.
+    // 한줄평의 별은 미쉐린 별이라 픽커가 매긴 등급이 아니다. 옮기지 않고 그대로 둔다.
+    read({ title }) {
+      if (/^\[(19|20)\d\d\s/.test(title)) return null
+
+      const found = title.match(/^\[([^\]]+)\]\s*(.+?)\s*[-–]\s*(.+)$/)
+      if (!found) return null
+
+      const [, name, region, note] = found
+      return { region, name, note, rating: null, level: null, levelBy: null }
+    },
+  },
+  {
+    id: 'dkfl279',
+    name: '홍아',
+    url: 'https://blog.naver.com/dkfl279',
+    // "망포 야장고깃집 '우백탄 반월점' 마늘양념 소갈빗살 맛집"
+    // 이 픽커만 카테고리를 본다. 제목에 형식이 없어 제목만으로는 맛집 글을 가려낼 수 없다.
+    // 여행·제품리뷰·웨딩을 함께 쓰는데, 맛집은 카테고리 10 하나에 모여 있다.
+    // 제목 형식은 시기마다 달라 넷을 차례로 본다. 어느 규칙에도 안 맞으면 협찬·묶음 글이라 버린다.
+    read({ title, categoryNo }) {
+      if (categoryNo !== EAT) return null
+
+      // '떡동여지도 200.' 은 떡볶이집 순번이다. 떼고 나머지를 규칙에 맡긴다.
+      const head = title.replace(SERIES, '')
+      // '[부산 맛집 모음] : 먹기만 하고온 식도락여행' 처럼 대괄호 뒤가 바로 설명인 묶음 글이 있다.
+      const pick = (region, name, note) => name.trim() ? {
+        region: region.replace(TAIL, ''), name, note,
+        rating: null, level: null, levelBy: null,
+      } : null
+
+      // '[제주] :: 함덕고갈치 :: 통갈치조림', '[산본] 우정식당 : 동태찌개 찐맛집'
+      let found = head.match(/^\[([^\]]+)\]\s*(?:::)?\s*(.+?)\s*(?:::|:|[-–])\s*(.+)$/)
+      if (found) return pick(found[1], found[2], found[3])
+
+      // '안양일번가맛집 :: 통큰흑염소 :: 흑염소탕'. 지역을 대괄호 없이 적은 시기가 있다.
+      found = head.match(/^([^:[]{1,15}?)\s*::\s*([^:]+?)\s*::\s*(.+)$/)
+      if (found) return pick(found[1], found[2], found[3])
+
+      // '떡동여지도 45. 진미떡볶이 (용인 죽전) 해물즉석떡볶이'. 순번 글에서만 괄호가 지역이다.
+      found = head.match(/^([^()]+?)\s*\(([^()]{1,15})\)\s*(.+)$/)
+      if (found && SERIES.test(title)) return pick(found[2], found[1], found[3])
+
+      // "여주 맵친자 매운짬뽕 '유가장' 2단계 도전". 가게명만 따옴표로 감싼다.
+      found = head.match(/^(.*?)['‘]([^'’]{1,30})['’]\s*(.*)$/)
+      if (found) return pick(regionOf(found[1]), found[2], found[3])
+
+      return null
+    },
+  },
 ]
+
+/** 홍아의 맛집 카테고리. 하위 카테고리(떡동여지도)까지 부모 번호가 같다. */
+const EAT = '10'
+
+/** '떡동여지도 200.' 처럼 떡볶이집에 붙는 순번. */
+const SERIES = /^떡동여지도\s*\d+(?:탄)?\s*[.:]?\s*/
+
+/** 지역 뒤에 붙는 말. '안양일번가맛집' 과 '안양일번가' 가 따로 세지 않게 뗀다. */
+const TAIL = /\s*(맛집|술집|카페|분식|떡볶이|식당)$/
+
+/** 가게명 앞에 남은 말에서 지역을 집는다. 대괄호가 있으면 그 안이, 없으면 첫 낱말이 지역이다. */
+function regionOf(head) {
+  const bracket = head.match(/^\[([^\]]+)\]/)
+  return bracket ? bracket[1] : head.trim().split(/\s+/)[0]
+}
 
 /** '마포 을밀대 본점' 처럼 지점명이 붙은 경우 가게명 쪽에 남긴다. */
 function splitRegion(head) {
