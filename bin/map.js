@@ -258,6 +258,9 @@ const maps = {
     })
     window.closeBubble = () => bubble.close()
 
+    // 빈 데를 누르면 닫는다. 닫는 단추를 찾아 누르게 할 일이 아니다.
+    naver.maps.Event.addListener(map, 'click', () => bubble.close())
+
     /**
      * 네이버 마커는 하나가 DOM 하나다. 만 개를 붙이면 지도가 버벅인다.
      * 그래서 화면에 든 것만, 그것도 겹치는 집부터 이만큼만 붙이고 나머지는 뗀다.
