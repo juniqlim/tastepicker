@@ -22,6 +22,7 @@ const spots = toSpots(picks)
       rating: pick.rating,
       note: pick.note,
       link: pick.link,
+      sponsored: pick.sponsored,
     })),
   }))
 
@@ -55,6 +56,9 @@ const html = `<!doctype html>
   .spot li { margin:4px 0 }
   .spot em { font-style:normal; font-weight:600; color:#1971c2 }
   .who { font-weight:600 }
+  /* 대가를 받은 글이라는 표시. 한줄평보다 앞서 보이되 등급처럼 강하진 않게 둔다. */
+  .paid { padding:0 4px; border-radius:3px; background:#f1f3f5;
+          color:#868e96; font-size:11px; font-weight:600; vertical-align:1px }
   .spot a { color:#868e96; font-size:12px; text-decoration:none }
   .spot a:hover { text-decoration:underline }
   nav { display:flex; gap:4px; flex-wrap:wrap; padding:20px 0; justify-content:center }
@@ -154,6 +158,8 @@ const row = spot => '<div class="spot"><h2>' + escape(spot.name) +
   spot.picks.map(pick =>
     '<li><span class="who">' + (pickerName[pick.picker] || pick.picker) + '</span>' +
     (pick.rating ? ' <em>' + escape(pick.rating) + '</em>' : '') +
+    // 대가를 받고 쓴 글은 밝힌다. 지도에서 걸러 볼 수 있는 것을 여기서 감출 이유가 없다.
+    (pick.sponsored ? ' <b class="paid">협찬</b>' : '') +
     ' ' + escape(pick.note) +
     ' <a href="' + pick.link + '" target="_blank" rel="noopener">원문</a></li>').join('') +
   '</ol></div>'

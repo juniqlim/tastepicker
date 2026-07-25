@@ -65,7 +65,12 @@ export function openDb(path) {
 
 const marks = FIELDS.map(() => '?').join(', ')
 const updates = FIELDS.filter((field) => field !== 'id')
-  .map((field) => `${field} = excluded.${field}`)
+  .map((field) =>
+    // 장소를 받아둔 글은 본문을 다시 받지 않아 대가 여부가 비어 온다. 담아둔 판정을 지킨다.
+    field === 'sponsored'
+      ? 'sponsored = COALESCE(excluded.sponsored, pick.sponsored)'
+      : `${field} = excluded.${field}`,
+  )
   .join(', ')
 
 /** 같은 방문을 다시 넣으면 갱신한다. 픽커가 글을 고칠 수 있다. */
@@ -121,15 +126,6 @@ export function placeOf(db, link) {
     lng: row.lng,
     tel: row.tel,
   }
-}
-
-/**
- * 본문을 살펴 대가를 판정했는지. 아직 안 살펴본 글은 `null` 이다.
- * 대가가 아니라고 본 글(`false`)과 구별해야 본문을 두 번 받지 않는다.
- */
-export function sponsoredOf(db, link) {
-  const row = db.prepare('SELECT sponsored FROM pick WHERE link = ?').get(link)
-  return row && row.sponsored !== null ? Boolean(row.sponsored) : null
 }
 
 /** 규칙이 바뀌어 더는 픽이 아닌 글을 지운다. */

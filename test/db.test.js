@@ -1,9 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import {
-  openDb, savePick, savedLinks, allPicks, placeOf, sponsoredOf, dropOthers, digest,
-} from '../src/db.js'
+import { openDb, savePick, savedLinks, allPicks, placeOf, dropOthers, digest } from '../src/db.js'
 
 const 억떡볶이 = {
   picker: 'thddbcjf',
@@ -144,17 +142,24 @@ test('대가를 밝힌 글인지 함께 담는다', () => {
   savePick(db, { ...억떡볶이, sponsored: true })
 
   assert.equal(allPicks(db)[0].sponsored, true)
-  assert.equal(sponsoredOf(db, 억떡볶이.link), true)
 })
 
-test('대가가 아닌 글과 아직 안 살펴본 글은 다르다', () => {
+test('본문을 다시 받지 않은 판에는 담아둔 판정을 지킨다', () => {
+  const db = openDb(':memory:')
+  savePick(db, { ...억떡볶이, sponsored: true })
+
+  // 장소가 이미 있으면 본문을 안 받아서 대가 여부가 비어 온다.
+  savePick(db, { ...억떡볶이, note: '고친 한줄평' })
+
+  assert.equal(allPicks(db)[0].sponsored, true)
+  assert.equal(allPicks(db)[0].note, '고친 한줄평')
+})
+
+test('아직 안 살펴본 글은 비워 둔다', () => {
   const db = openDb(':memory:')
 
-  savePick(db, { ...억떡볶이, sponsored: false })
-  savePick(db, { ...좌표만 })
+  savePick(db, 억떡볶이)
 
-  // 살펴서 아니라고 본 글은 다시 받지 않는다. 안 살펴본 글은 받아야 한다.
-  assert.equal(sponsoredOf(db, 억떡볶이.link), false)
-  assert.equal(sponsoredOf(db, 좌표만.link), null)
-  assert.equal(sponsoredOf(db, 'https://blog.naver.com/없는/글'), null)
+  // 대가가 아니라고 본 것과 안 살펴본 것은 다르다.
+  assert.equal(allPicks(db)[0].sponsored, null)
 })

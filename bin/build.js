@@ -7,7 +7,7 @@ import {
   parsePlace, googleMapUrl, coordsFromGoogle, naverMapMid, coordsFromMashup,
 } from '../src/place.js'
 import { isSponsored } from '../src/sponsor.js'
-import { openDb, savePick, placeOf, sponsoredOf, dropOthers, digest } from '../src/db.js'
+import { openDb, savePick, placeOf, dropOthers, digest } from '../src/db.js'
 
 const data = join(import.meta.dirname, '../data')
 const show = (text) => process.stdout.write(`\r\x1b[K${text}`)
@@ -55,10 +55,10 @@ for (const picker of targets) {
   let fetched = 0
   for (const [index, pick] of picks.entries()) {
     // 본문은 한 번만 받는다. 규칙을 고쳐 다시 돌려도 본문을 또 받지 않는다.
-    // 장소와 대가 여부를 한 본문에서 함께 뽑는다. 둘 중 하나만 비어도 받아야 한다.
+    // 장소와 대가 여부를 그 한 번에 함께 뽑는다.
     let place = placeOf(db, pick.link)
-    let sponsored = sponsoredOf(db, pick.link)
-    if (place === undefined || sponsored === null) {
+    let sponsored
+    if (place === undefined) {
       const html = await fetchPost(pick.link)
       place = await placeIn(html)
       sponsored = isSponsored(html)
