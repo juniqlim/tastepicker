@@ -98,6 +98,11 @@ const html = `<!doctype html>
   #bar span { color:#adb5bd }
   #who { margin-top:4px; color:#868e96; font-size:12px }
   .pop { max-height:280px; overflow-y:auto }
+  .bubble { position:relative; padding:12px 30px 12px 14px; background:#fff;
+            border-radius:12px; box-shadow:0 1px 8px rgba(0,0,0,.25) }
+  .bubble .x { position:absolute; top:4px; right:6px; padding:0 4px; border:0;
+               background:none; color:#adb5bd; font-size:18px; line-height:1; cursor:pointer }
+  .bubble .x:hover { color:#495057 }
   .pop b { font-size:15px }
   .pop ul { margin:8px 0; padding-left:16px }
   .pop li { margin-bottom:6px; color:#495057 }
@@ -167,6 +172,9 @@ const pickerName = ${JSON.stringify(Object.fromEntries(PICKERS.map((p) => [p.id,
  * 지도는 배경만 다른 게 아니라 API가 아예 다르다. 쓰는 것만 같은 이름으로 감싼다.
  * 켜고 끄는 단위는 마커 묶음 하나다. 픽커의 등급 하나가 묶음 하나다.
  */
+// 말풍선은 핀 위로 열린다. 핀을 화면 가운데 두면 왼쪽 위 상자에 가려서, 그만큼 아래로 내려 둔다.
+const LIFT = 220
+
 const dot = (color, fade) =>
   '<div style="width:13px;height:13px;border-radius:50%;border:1.5px solid #fff;' +
   'background:' + color + ';opacity:' + fade + '"></div>'
@@ -191,7 +199,13 @@ const maps = {
             }).bindPopup(pin.popup)
             group.addLayer(marker)
 
-            return { open: () => { map.setView([pin.lat, pin.lng], 17); marker.openPopup() } }
+            return {
+              open() {
+                map.setView([pin.lat, pin.lng], 17)
+                map.panBy([0, -LIFT], { animate: false })
+                marker.openPopup()
+              }
+            }
           }
         }
       },
@@ -203,8 +217,17 @@ const maps = {
 
   naver() {
     const map = new naver.maps.Map('map')
-    // 말풍선은 하나만 두고 내용을 갈아 끼운다. 여럿을 띄우면 겹쳐서 못 읽는다.
-    const bubble = new naver.maps.InfoWindow({ maxWidth: 320, borderColor: '#dee2e6' })
+
+    /**
+     * 말풍선은 하나만 두고 내용을 갈아 끼운다. 여럿을 띄우면 겹쳐서 못 읽는다.
+     * 네이버가 주는 모양은 각지고 닫을 데도 없어서, 껍데기를 비우고 안을 직접 그린다.
+     * 두 지도에서 같은 말풍선으로 보여야 한다. 지도를 바꿨다고 다른 화면처럼 보이면 안 된다.
+     */
+    const bubble = new naver.maps.InfoWindow({
+      maxWidth: 320, backgroundColor: 'transparent', borderWidth: 0,
+      anchorColor: '#fff', pixelOffset: new naver.maps.Point(0, -4)
+    })
+    window.closeBubble = () => bubble.close()
 
     /**
      * 네이버 마커는 하나가 DOM 하나다. 만 개를 붙이면 지도가 버벅인다.
@@ -228,7 +251,9 @@ const maps = {
 
     const pop = (pin) => {
       attach(pin)
-      bubble.setContent(pin.popup)
+      bubble.setContent(
+        '<div class="bubble"><button class="x" type="button" onclick="closeBubble()">×</button>' +
+        pin.popup + '</div>')
       bubble.open(map, pin.marker)
     }
 
@@ -270,7 +295,14 @@ const maps = {
             pins.push(pin)
             mine.push(pin)
 
-            return { open() { map.setCenter(pin.at); map.setZoom(17); pop(pin) } }
+            return {
+              open() {
+                map.setCenter(pin.at)
+                map.setZoom(17)
+                map.panBy(new naver.maps.Point(0, -LIFT))
+                pop(pin)
+              }
+            }
           }
         }
       },
