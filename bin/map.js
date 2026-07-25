@@ -262,17 +262,11 @@ const maps = {
   osm() {
     const map = L.map('map')
 
-    // 어두울 때는 배경도 어두운 것으로 간다. 밝은 지도 위의 어두운 상자는 더 눈에 띈다.
-    const TILES = {
-      light: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      dark: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-    }
-    const tiles = L.tileLayer(TILES.light, {
-      attribution: '© OpenStreetMap · 어두운 배경 © CARTO'
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
     }).addTo(map)
 
     return {
-      theme: dark => tiles.setUrl(dark ? TILES.dark : TILES.light),
       group() {
         const group = L.layerGroup().addTo(map)
         return {
@@ -381,8 +375,6 @@ const maps = {
     naver.maps.Event.addListener(map, 'idle', draw)
 
     return {
-      // 네이버는 어두운 배경을 내주지 않는다. 상자만 어두워진다.
-      theme: () => {},
       group() {
         const mine = []
 
@@ -695,7 +687,7 @@ const foldable = (key, box, button, arrows) => {
   show(foldedAt(key))
 }
 
-${themeScript('map.theme(dark)')}
+${themeScript()}
 
 foldable('tastepicker:fold', document.getElementById('pickers'),
   document.getElementById('fold'), ['▾', '▸'])
