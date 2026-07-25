@@ -127,6 +127,8 @@ const html = `<!doctype html>
   #bar button { width:18px; height:18px; padding:0; border:1px solid #dee2e6; border-radius:4px;
                 background:#fff; color:#868e96; font-size:10px; line-height:1; cursor:pointer }
   #pickers.off { display:none }
+  /* 접으면 켤 것도 끌 것도 안 보인다. 모두 끄는 단추도 같이 접는다. */
+  #bar:has(#pickers.off) #all { display:none }
   /* 폭도 높이도 담긴 줄에 맞춘다. 몇 곳 없을 때 빈자리를 차지할 이유가 없다. */
   /* 좁은 화면에서는 목록이 지도를 다 덮는다. 지도가 반은 남게 잡아 둔다. */
   #list { position:absolute; z-index:500; top:10px; right:10px;
@@ -136,13 +138,15 @@ const html = `<!doctype html>
           overflow-y:auto; padding:10px 12px }
   /* 접으면 단추만 남는다. 다 숨기면 다시 펼 길이 없다. */
   #list.off { min-width:0; padding:6px }
-  #list.off #listBody { display:none }
-  #foldList { float:right; margin:-2px -4px 0 6px; width:18px; height:18px; padding:0;
+  #list.off #listBody, #list.off #findbox { display:none }
+  /* 접는 단추는 찾는 칸과 한 줄에 선다. 줄을 따로 내주면 그만큼 지도가 줄어든다. */
+  #listTop { display:flex; align-items:center; gap:6px; margin-bottom:8px }
+  #list.off #listTop { margin:0 }
+  #foldList { flex:none; width:18px; height:18px; padding:0;
               border:1px solid #dee2e6; border-radius:4px; background:#fff; color:#868e96;
               font-size:10px; line-height:1; cursor:pointer }
-  #list.off #foldList { float:none; display:block; margin:0 }
   #list h3 { margin:0 0 8px; font-size:14px }
-  #findbox { position:relative; margin-bottom:8px }
+  #findbox { position:relative; flex:1 }
   #find { width:100%; box-sizing:border-box; font:inherit;
           padding:4px 24px 4px 6px; border:1px solid #dee2e6; border-radius:4px }
   /* 지우는 단추는 적었을 때만 나온다. 빈 칸에 지울 것은 없다. */
@@ -159,8 +163,8 @@ const html = `<!doctype html>
 <div id="bar">
   <div class="row"><a>픽커</a>
     <button id="all" type="button" title="모두 끄기">☑</button>
-    <button id="here" type="button" title="내가 있는 데로">◎</button>
     <button id="fold" type="button" title="접기">▾</button>
+    <button id="here" type="button" title="내가 있는 데로">◎</button>
   </div>
   <div id="pickers">
     <div class="row" id="mine"></div>
@@ -177,12 +181,14 @@ const html = `<!doctype html>
   </div>
 </div>
 <div id="list">
-  <button id="foldList" type="button" title="접기">▸</button>
-  <div id="listBody">
+  <div id="listTop">
+    <button id="foldList" type="button" title="접기">▸</button>
     <div id="findbox">
       <input id="find" placeholder="가게 이름으로 찾기" autocomplete="off">
       <button id="clear" type="button" title="지우기">×</button>
     </div>
+  </div>
+  <div id="listBody">
     <h3 id="head"></h3>
     <div id="rows"></div>
   </div>
