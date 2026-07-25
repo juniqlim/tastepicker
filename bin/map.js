@@ -129,8 +129,7 @@ const html = `<!doctype html>
 </style>
 <div id="bar">
   <div class="row"><a>픽커</a>
-    <button id="all" type="button" title="모두 켜기">☑</button>
-    <button id="none" type="button" title="모두 끄기">☐</button>
+    <button id="all" type="button" title="모두 끄기">☑</button>
     <button id="fold" type="button" title="접기">▾</button>
   </div>
   <div id="pickers">
@@ -432,14 +431,28 @@ function bindBoxes() {
       box.checked ? layer.show() : layer.hide()
       box.checked ? hidden.delete(key) : hidden.add(key)
       localStorage.setItem(HIDDEN, JSON.stringify([...hidden]))
+      showAll()
       drawList()
     }
   }
 }
 
-// 픽커가 여덟이라 하나씩 끄면 손이 많이 간다. 한 픽커만 보려면 다 끄고 하나만 켜는 쪽이 빠르다.
+/**
+ * 픽커가 여덟이라 하나씩 끄면 손이 많이 간다. 한 픽커만 보려면 다 끄고 하나만 켜는 쪽이 빠르다.
+ * 단추는 하나만 둔다. 다 켜져 있으면 끄고, 하나라도 꺼져 있으면 다 켠다.
+ */
+const toggleAll = document.getElementById('all')
+const boxes = () => [...document.querySelectorAll('#pickers input')]
+
+// 기호는 지금 상태를 보인다. 누르면 어떻게 되는지는 이름표에 적는다.
+function showAll() {
+  const on = boxes().every(box => box.checked)
+  toggleAll.textContent = on ? '☑' : '☐'
+  toggleAll.title = on ? '모두 끄기' : '모두 켜기'
+}
+
 const setAll = (on) => {
-  for (const box of document.querySelectorAll('#pickers input')) {
+  for (const box of boxes()) {
     const key = box.dataset.layer
     box.checked = on
     on ? hidden.delete(key) : hidden.add(key)
@@ -447,13 +460,14 @@ const setAll = (on) => {
   }
 
   localStorage.setItem(HIDDEN, JSON.stringify([...hidden]))
+  showAll()
   drawList()
 }
 
-document.getElementById('all').onclick = () => setAll(true)
-document.getElementById('none').onclick = () => setAll(false)
+toggleAll.onclick = () => setAll(!boxes().every(box => box.checked))
 
 bindBoxes()
+showAll()
 // 내 평가는 아직 보이지 않게 둔다. 가게를 더 골라 담은 뒤에 켠다.
 // loadMine()
 
