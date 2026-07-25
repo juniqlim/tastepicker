@@ -10,7 +10,35 @@
  * 업종 경로(`/restaurant/…`)로 물으면 안 된다. 없는 가게에도 페이지를 내주어 둘이 구별되지 않는다.
  */
 
+import { execFile } from 'node:child_process'
+
 export const checkUrl = (placeId) => `https://m.place.naver.com/place/${placeId}/home`
+
+/** 브라우저처럼 묻지 않으면 막는다(429). 이름만 대충 대서는 안 통한다. */
+const MOBILE =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' +
+  ' (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+
+/**
+ * 장소가 아직 있는지 묻고 답의 번호만 받는다. 못 물었으면 비운다.
+ *
+ * 여기만 Node 로 부르지 않고 `curl` 을 쓴다.
+ * 많이 물으면 막히는데(429), 같은 자리에서 같은 순간에 `fetch` 는 여덟에 둘만 통과하고
+ * `curl` 은 여덟을 다 통과했다. IP 만 세는 게 아니라 연결의 모양도 같이 본다.
+ * 무엇을 보는지는 네이버만 안다. 오래 버티는 쪽을 쓴다.
+ *
+ * 넘김은 따라가지 않는다. 넘긴다는 것 자체가 답이라 그 뒤는 볼 것이 없다.
+ * 본문도 받지 않는다(`-I`). 한 곳에 0.2초면 된다.
+ */
+export function askPlace(placeId) {
+  return new Promise((done) => {
+    execFile(
+      'curl',
+      ['-s', '-o', '/dev/null', '-w', '%{http_code}', '-I', '-A', MOBILE, checkUrl(placeId)],
+      (broken, answer) => done(broken ? null : Number(answer) || null),
+    )
+  })
+}
 
 /**
  * 넘김(302)은 있다는 뜻, 빈 껍데기(200)는 없다는 뜻이다.

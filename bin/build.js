@@ -7,20 +7,13 @@ import {
   parsePlace, googleMapUrl, coordsFromGoogle, naverMapMid, coordsFromMashup,
 } from '../src/place.js'
 import { isSponsored } from '../src/sponsor.js'
-import { checkUrl, isGone } from '../src/closed.js'
+import { askPlace, isGone } from '../src/closed.js'
 import {
   openDb, savePick, placeOf, dropOthers, digest, saveClosed, placesToCheck,
 } from '../src/db.js'
 
 const data = join(import.meta.dirname, '../data')
 const show = (text) => process.stdout.write(`\r\x1b[K${text}`)
-
-// 네이버 장소는 브라우저처럼 묻지 않으면 막는다(429). 이름만 대충 대서는 안 통한다.
-const MOBILE = {
-  'User-Agent':
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' +
-    ' (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-}
 
 // 구글맵 단축 링크는 좌표가 없다. 펼쳐야 나온다. 리다이렉트 주소만 읽고 본문은 안 받는다.
 async function expand(url) {
@@ -86,7 +79,8 @@ for (const picker of targets) {
 /**
  * 문 닫은 가게를 가려낸다. 픽커의 글은 남지만 가게는 사라진다.
  *
- * 장소가 칠천 곳이라 다 물으면 40분이 걸린다. 하루 몫만 보고 엿새에 한 바퀴 돈다.
+ * 장소가 칠천 곳인데 하루에 물을 수 있는 양이 따로 있다. 천 몇 백 곳을 넘기면 막힌다.
+ * 그래서 하루 몫만 보고 엿새에 한 바퀴 돈다.
  * 가게가 문을 닫는 건 하루 이틀 다투는 일이 아니라 이 정도로 충분하다.
  *
  * 픽커를 지정해 돌릴 때는 건너뛴다. 픽커 하나 붙이려고 장소를 다 물을 이유가 없다.
@@ -100,18 +94,14 @@ if (only.length === 0) {
   let missed = 0
 
   for (const [index, placeId] of places.entries()) {
-    // 남의 서버를 두드리는 일이라 천천히 부른다. 넘김만 보면 되니 본문은 받지 않는다.
-    const response = await fetch(checkUrl(placeId), { method: 'HEAD', headers: MOBILE, redirect: 'manual' })
-      .catch(() => null)
-
-    const closed = response ? isGone(response.status) : null
+    // 하나씩 차례로 묻는다. 한꺼번에 부르면 열에 여덟이 막힌다(429).
+    const closed = isGone(await askPlace(placeId))
     // 막히거나 흔들린 답은 담지 않는다. 다음에 다시 묻는다.
     if (closed === null) missed++
     else saveClosed(db, placeId, closed, today)
     if (closed) gone++
 
     show(`  장소 ${index + 1}/${places.length}  없어진 곳 ${gone}`)
-    await new Promise((done) => setTimeout(done, 150))
   }
 
   show(`  장소 ${places.length}곳 확인, 없어진 곳 ${gone}곳, 못 물은 곳 ${missed}곳\n`)

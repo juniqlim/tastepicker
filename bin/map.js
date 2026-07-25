@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { PICKERS } from '../src/pickers.js'
 import { toSpots, byWeight } from '../src/spots.js'
 import { pickerColors } from '../src/colors.js'
+import { themeButton, darkStyle, themeScript } from '../src/theme.js'
 import { openDb, allPicks, closedPlaces } from '../src/db.js'
 
 try {
@@ -120,35 +121,48 @@ const html = `<!doctype html>
 <title>tastepicker</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  body { margin:0; font:14px/1.5 system-ui, sans-serif }
-  #map { height:100vh }
+  /**
+   * 밤에 지도를 열면 흰 상자가 눈을 찌른다. 색은 이름으로만 쓰고 두 벌을 여기서 갈아 끼운다.
+   * 기기 설정을 따르되, 눌러서 바꾼 것은 그 위에 선다.
+   */
+  :root {
+    --box:#fff; --ink:#212529; --ink2:#495057; --dim:#868e96; --dim2:#adb5bd;
+    --line:#dee2e6; --line2:#f1f3f5; --hover:#f8f9fa; --link:#1971c2;
+  }
+  ${darkStyle(`
+    --box:#212529; --ink:#e9ecef; --ink2:#ced4da; --dim:#adb5bd; --dim2:#868e96;
+    --line:#495057; --line2:#343a40; --hover:#2b3035; --link:#74c0fc;
+  `)}
+
+  body { margin:0; font:14px/1.5 system-ui, sans-serif; color-scheme:light dark }
+  #map { height:100vh; background:var(--box) }
   /* 범례도 담긴 줄에 맞춘다. 픽커가 적을 때 화면을 가로로 다 먹을 이유가 없다. */
   #bar { position:absolute; z-index:500; top:10px; left:60px;
          width:max-content; max-width:calc(100vw - 80px);
-         padding:8px 12px; background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25) }
+         padding:8px 12px; background:var(--box); border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25) }
   #bar .row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:2px 0 }
-  #bar .row > a { color:#212529; font-weight:600; margin-right:6px }
-  #bar label { white-space:nowrap; cursor:pointer; color:#495057 }
-  #bar span { color:#adb5bd }
-  #who { margin-top:4px; color:#868e96; font-size:12px }
+  #bar .row > a { color:var(--ink); font-weight:600; margin-right:6px }
+  #bar label { white-space:nowrap; cursor:pointer; color:var(--ink2) }
+  #bar span { color:var(--dim2) }
+  #who { margin-top:4px; color:var(--dim); font-size:12px }
   .pop { max-height:280px; overflow-y:auto }
-  .bubble { position:relative; padding:12px 30px 12px 14px; background:#fff;
+  .bubble { position:relative; padding:12px 30px 12px 14px; background:var(--box);
             border-radius:12px; box-shadow:0 1px 8px rgba(0,0,0,.25) }
   .bubble .x { position:absolute; top:4px; right:6px; padding:0 4px; border:0;
-               background:none; color:#adb5bd; font-size:18px; line-height:1; cursor:pointer }
-  .bubble .x:hover { color:#495057 }
+               background:none; color:var(--dim2); font-size:18px; line-height:1; cursor:pointer }
+  .bubble .x:hover { color:var(--ink2) }
   .pop b { font-size:15px }
   .pop ul { margin:8px 0; padding-left:16px }
-  .pop li { margin-bottom:6px; color:#495057 }
-  .pop i { color:#adb5bd; font-style:normal; font-size:12px }
-  .pop em { color:#1971c2; font-style:normal; font-weight:600 }
-  .pop .addr { color:#868e96; font-size:12px }
+  .pop li { margin-bottom:6px; color:var(--ink2) }
+  .pop i { color:var(--dim2); font-style:normal; font-size:12px }
+  .pop em { color:var(--link); font-style:normal; font-weight:600 }
+  .pop .addr { color:var(--dim); font-size:12px }
   /* 없어진 집이라는 표시. 이름 옆에 붙되 이름보다 세지 않게 둔다. */
-  .gone { padding:0 4px; border-radius:3px; background:#f1f3f5;
-          color:#868e96; font-size:11px; font-weight:600; vertical-align:1px }
-  #bar select { font:inherit; padding:2px 4px; border:1px solid #dee2e6; border-radius:4px }
-  #bar button { width:18px; height:18px; padding:0; border:1px solid #dee2e6; border-radius:4px;
-                background:#fff; color:#868e96; font-size:10px; line-height:1; cursor:pointer }
+  .gone { padding:0 4px; border-radius:3px; background:var(--line2);
+          color:var(--dim); font-size:11px; font-weight:600; vertical-align:1px }
+  #bar select { font:inherit; padding:2px 4px; border:1px solid var(--line); border-radius:4px }
+  #bar button { width:18px; height:18px; padding:0; border:1px solid var(--line); border-radius:4px;
+                background:var(--box); color:var(--dim); font-size:10px; line-height:1; cursor:pointer }
   #pickers.off { display:none }
   /* 접으면 켤 것도 끌 것도 안 보인다. 모두 끄는 단추도 같이 접는다. */
   #bar:has(#pickers.off) #all { display:none }
@@ -157,7 +171,7 @@ const html = `<!doctype html>
   #list { position:absolute; z-index:500; top:10px; right:10px;
           width:max-content; min-width:180px; max-width:min(320px, 62vw);
           max-height:calc(100vh - 20px);
-          background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25);
+          background:var(--box); border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25);
           overflow-y:auto; padding:10px 12px }
   /* 접으면 단추만 남는다. 다 숨기면 다시 펼 길이 없다. */
   #list.off { min-width:0; padding:6px }
@@ -166,28 +180,31 @@ const html = `<!doctype html>
   #listTop { display:flex; align-items:center; gap:6px; margin-bottom:8px }
   #list.off #listTop { margin:0 }
   #foldList { flex:none; width:18px; height:18px; padding:0;
-              border:1px solid #dee2e6; border-radius:4px; background:#fff; color:#868e96;
+              border:1px solid var(--line); border-radius:4px; background:var(--box); color:var(--dim);
               font-size:10px; line-height:1; cursor:pointer }
   #list h3 { margin:0 0 8px; font-size:14px }
   #findbox { position:relative; flex:1 }
   #find { width:100%; box-sizing:border-box; font:inherit;
-          padding:4px 24px 4px 6px; border:1px solid #dee2e6; border-radius:4px }
+          padding:4px 24px 4px 6px; border:1px solid var(--line); border-radius:4px;
+          background:var(--box); color:var(--ink) }
+  #bar select { background:var(--box); color:var(--ink) }
   /* 지우는 단추는 적었을 때만 나온다. 빈 칸에 지울 것은 없다. */
   #clear { position:absolute; top:50%; right:4px; transform:translateY(-50%); display:none;
-           padding:0 4px; border:0; background:none; color:#adb5bd; font-size:16px;
+           padding:0 4px; border:0; background:none; color:var(--dim2); font-size:16px;
            line-height:1; cursor:pointer }
-  #clear:hover { color:#495057 }
+  #clear:hover { color:var(--ink2) }
   #clear.on { display:block }
-  #list a { display:block; padding:6px 0; border-top:1px solid #f1f3f5; color:#212529;
+  #list a { display:block; padding:6px 0; border-top:1px solid var(--line2); color:var(--ink);
             text-decoration:none; cursor:pointer }
-  #list a:hover { background:#f8f9fa }
-  #list .note { color:#868e96; font-size:12px }
+  #list a:hover { background:var(--hover) }
+  #list .note { color:var(--dim); font-size:12px }
 </style>
 <div id="bar">
   <div class="row"><a>픽커</a>
     <button id="here" type="button" title="내가 있는 데로">◎</button>
     <button id="fold" type="button" title="접기">▾</button>
     <button id="all" type="button" title="모두 끄기">☑</button>
+    ${themeButton}
   </div>
   <div id="pickers">
     <div class="row" id="mine"></div>
@@ -244,11 +261,18 @@ const dot = (color, fade) =>
 const maps = {
   osm() {
     const map = L.map('map')
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap'
+
+    // 어두울 때는 배경도 어두운 것으로 간다. 밝은 지도 위의 어두운 상자는 더 눈에 띈다.
+    const TILES = {
+      light: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      dark: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+    }
+    const tiles = L.tileLayer(TILES.light, {
+      attribution: '© OpenStreetMap · 어두운 배경 © CARTO'
     }).addTo(map)
 
     return {
+      theme: dark => tiles.setUrl(dark ? TILES.dark : TILES.light),
       group() {
         const group = L.layerGroup().addTo(map)
         return {
@@ -357,6 +381,8 @@ const maps = {
     naver.maps.Event.addListener(map, 'idle', draw)
 
     return {
+      // 네이버는 어두운 배경을 내주지 않는다. 상자만 어두워진다.
+      theme: () => {},
       group() {
         const mine = []
 
@@ -668,6 +694,8 @@ const foldable = (key, box, button, arrows) => {
 
   show(foldedAt(key))
 }
+
+${themeScript('map.theme(dark)')}
 
 foldable('tastepicker:fold', document.getElementById('pickers'),
   document.getElementById('fold'), ['▾', '▸'])

@@ -18,6 +18,11 @@ test('막히거나 흔들린 응답은 판정하지 않는다', () => {
   for (const status of [429, 500, 502, 403]) assert.equal(isGone(status), null, String(status))
 })
 
+test('아예 못 물었으면 판정하지 않는다', () => {
+  // 연결이 끊기면 답이 없다. 없어진 것과는 다르다.
+  assert.equal(isGone(null), null)
+})
+
 test('네이버 장소만 확인할 수 있다', () => {
   assert.equal(checkable('1209575927'), true)
   // 구글맵을 붙인 글은 구글 ID 라 네이버에 물어봐야 늘 없다고 나온다.

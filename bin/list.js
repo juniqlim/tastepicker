@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
 import { toSpots, byWeight, toRegions, regionOptions } from '../src/spots.js'
+import { themeButton, darkStyle, themeScript } from '../src/theme.js'
 import { openDb, allPicks, closedPlaces } from '../src/db.js'
 
 const db = openDb(join(import.meta.dirname, '../data/picks.db'))
@@ -44,7 +45,8 @@ const html = `<!doctype html>
   header { position:sticky; top:0; background:#fff; border-bottom:1px solid #e9ecef;
            padding:12px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap }
   header a.home { color:#212529; font-weight:700; text-decoration:none }
-  select, input { font:inherit; padding:4px 6px; border:1px solid #dee2e6; border-radius:4px }
+  select, input, #theme { font:inherit; padding:4px 6px; border:1px solid #dee2e6;
+                          border-radius:4px; background:#fff; cursor:pointer }
   main { margin:0 auto; padding:0 16px 40px }
   main.list { max-width:760px }
   main.tile { max-width:1400px }
@@ -77,16 +79,16 @@ const html = `<!doctype html>
   nav button.on { background:#212529; color:#fff; border-color:#212529 }
   nav button:disabled { color:#ced4da; cursor:default }
   #empty { padding:40px 0; color:#868e96; text-align:center }
-  @media (prefers-color-scheme: dark) {
+  ${darkStyle(`
     body, header { background:#191a1c; color:#e9ecef }
     header { border-color:#343a40 }
     header a.home { color:#e9ecef }
-    select, input, nav button { background:#212529; color:#e9ecef; border-color:#495057 }
+    select, input, nav button, #theme { background:#212529; color:#e9ecef; border-color:#495057 }
     nav button.on { background:#e9ecef; color:#212529 }
     .spot, .tile .spot { border-color:#2b3035 }
     .spot ol { color:#adb5bd }
     .paid, .gone { background:#2b3035; color:#adb5bd }
-  }
+  `)}
 </style>
 <header>
   <a class="home" href="/">tastepicker</a>
@@ -106,6 +108,7 @@ const html = `<!doctype html>
   </select>
   ${spots.some((spot) => spot.closed)
     ? '<label id="goneBox"><input type="checkbox" id="showGone"> 없어진 곳</label>' : ''}
+  ${themeButton}
   <a class="home" href="/" style="margin-left:auto;font-weight:400;font-size:13px">지도로 →</a>
 </header>
 <main id="main" class="tile">
@@ -224,6 +227,7 @@ $('view').oninput = () => { look($('view').value); page = 1; draw() }
 look(localStorage.getItem(VIEW) || 'tile')
 
 draw()
+${themeScript()}
 </script>
 `
 
