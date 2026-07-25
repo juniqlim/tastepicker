@@ -105,6 +105,9 @@ const html = `<!doctype html>
   .pop em { color:#1971c2; font-style:normal; font-weight:600 }
   .pop .addr { color:#868e96; font-size:12px }
   #bar select { font:inherit; padding:2px 4px; border:1px solid #dee2e6; border-radius:4px }
+  #bar button { font:inherit; padding:1px 8px; border:1px solid #dee2e6; border-radius:4px;
+                background:#fff; color:#495057; cursor:pointer }
+  #pickers.off { display:none }
   #list { position:absolute; z-index:500; top:10px; right:10px; bottom:10px; width:290px;
           background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25);
           overflow-y:auto; padding:10px 12px; display:none }
@@ -116,12 +119,15 @@ const html = `<!doctype html>
   #list .note { color:#868e96; font-size:12px }
 </style>
 <div id="bar">
-  <div class="row" id="mine"></div>
-  ${legend}
+  <div class="row"><a>픽커</a> <button id="fold" type="button">접기</button></div>
+  <div id="pickers">
+    <div class="row" id="mine"></div>
+    ${legend}
+  </div>
   <div class="row">
     <a>지역</a>
     <select id="region"><option value="">고르면 그리로 갑니다</option>${regionOptions(regions)}</select>
-    <label><input type="checkbox" id="seeList"> 이 화면의 가게</label>
+    <label><input type="checkbox" id="seeList" checked> 이 화면의 가게</label>
   </div>
   ${NAVER_KEY ? `<div class="row">
     <a>지도</a>
@@ -426,8 +432,28 @@ function drawList() {
   }
 }
 
-// 목록을 여는지도 이 브라우저에 남는다. 지도만 보고 싶은 사람도 있다.
-seeList.checked = localStorage.getItem(SEEN) === 'on'
+// 픽커가 여덟이라 범례가 화면을 많이 먹는다. 접어 두고 쓸 수 있게 한다.
+// 접었는지도 브라우저에 남는다. 매번 접게 하면 접는 뜻이 없다.
+const FOLD = 'tastepicker:fold'
+const pickers = document.getElementById('pickers')
+const fold = document.getElementById('fold')
+
+const showFold = (folded) => {
+  pickers.classList.toggle('off', folded)
+  fold.textContent = folded ? '펴기' : '접기'
+}
+
+showFold(localStorage.getItem(FOLD) === 'on')
+
+fold.onclick = () => {
+  const folded = !pickers.classList.contains('off')
+  localStorage.setItem(FOLD, folded ? 'on' : 'off')
+  showFold(folded)
+}
+
+// 목록을 여는지도 이 브라우저에 남는다. 켜 두고 열되, 지도만 보고 싶으면 끈 것을 적는다.
+// 핀만 보면 어느 집인지 모르니 열려 있는 쪽이 처음 오는 사람에게 낫다.
+seeList.checked = localStorage.getItem(SEEN) !== 'off'
 listBox.classList.toggle('on', seeList.checked)
 
 seeList.onchange = () => {
