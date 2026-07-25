@@ -3,18 +3,23 @@ import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
 import { toSpots, byWeight, toRegions, regionOptions } from '../src/spots.js'
-import { openDb, allPicks } from '../src/db.js'
+import { openDb, allPicks, closedPlaces } from '../src/db.js'
 
 const db = openDb(join(import.meta.dirname, '../data/picks.db'))
 
 // 지도를 안 그리니 좌표도 주소도 필요 없다. 목록에 보일 것만 담는다.
 const picks = allPicks(db).filter((pick) => pick.place && pick.picker !== 'juniqlim')
+
+// 문 닫은 가게. 지도와 같이 기본으로 감추고, 켜야 보인다.
+const gone = closedPlaces(db)
+
 const spots = toSpots(picks)
   .filter((spot) => spot.region)
   .sort(byWeight)
   .map((spot) => ({
     name: spot.name,
     region: spot.region,
+    closed: gone.has(spot.placeId) || undefined,
     // 픽커 수는 정렬에 쓴다. 브라우저에서 매번 세지 않도록 여기서 담아 보낸다.
     pickers: new Set(spot.picks.map((pick) => pick.picker)).size,
     picks: spot.picks.map((pick) => ({
@@ -26,7 +31,8 @@ const spots = toSpots(picks)
     })),
   }))
 
-const options = regionOptions(toRegions(toSpots(picks)))
+// 지역 숫자는 기본으로 보이는 것에 맞춘다. 없어진 곳까지 세면 목록과 어긋난다.
+const options = regionOptions(toRegions(toSpots(picks).filter((spot) => !gone.has(spot.placeId))))
 
 const html = `<!doctype html>
 <meta charset="utf-8">
@@ -59,6 +65,10 @@ const html = `<!doctype html>
   /* 대가를 받은 글이라는 표시. 한줄평보다 앞서 보이되 등급처럼 강하진 않게 둔다. */
   .paid { padding:0 4px; border-radius:3px; background:#f1f3f5;
           color:#868e96; font-size:11px; font-weight:600; vertical-align:1px }
+  /* 없어진 집이라는 표시. 이름 옆에 붙되 이름보다 세지 않게 둔다. */
+  .gone { padding:0 4px; border-radius:3px; background:#f1f3f5;
+          color:#868e96; font-size:11px; font-weight:600; vertical-align:1px }
+  #goneBox { color:#868e96; font-size:13px; white-space:nowrap; cursor:pointer }
   .spot a { color:#868e96; font-size:12px; text-decoration:none }
   .spot a:hover { text-decoration:underline }
   nav { display:flex; gap:4px; flex-wrap:wrap; padding:20px 0; justify-content:center }
@@ -75,6 +85,7 @@ const html = `<!doctype html>
     nav button.on { background:#e9ecef; color:#212529 }
     .spot, .tile .spot { border-color:#2b3035 }
     .spot ol { color:#adb5bd }
+    .paid, .gone { background:#2b3035; color:#adb5bd }
   }
 </style>
 <header>
@@ -93,6 +104,8 @@ const html = `<!doctype html>
     <option value="tile">타일로</option>
     <option value="list">목록으로</option>
   </select>
+  ${spots.some((spot) => spot.closed)
+    ? '<label id="goneBox"><input type="checkbox" id="showGone"> 없어진 곳</label>' : ''}
   <a class="home" href="/" style="margin-left:auto;font-weight:400;font-size:13px">지도로 →</a>
 </header>
 <main id="main" class="tile">
@@ -125,7 +138,11 @@ function shown() {
   const word = $('find').value.trim().toLowerCase()
 
   // 시도만 골랐으면 그 아래를 다 받는다. '서울' 은 '서울 마포구' 를 품는다.
+  // 문 닫은 가게는 갈 수 없어서 기본으로 감춘다. 픽커의 글은 켜면 그대로 볼 수 있다.
+  const withGone = $('showGone') && $('showGone').checked
+
   const found = spots.filter(spot =>
+    (withGone || !spot.closed) &&
     (!region || spot.region === region || spot.region.startsWith(region + ' ')) &&
     (!picker || spot.picks.some(pick => pick.picker === picker)) &&
     (!word || spot.name.toLowerCase().includes(word)))
@@ -151,6 +168,8 @@ function draw() {
 
 // 한 줄이 한 번의 방문이다. 몇 번째 방문인지 번호로 보이고 원문으로 갈 길을 남긴다.
 const row = spot => '<div class="spot"><h2>' + escape(spot.name) +
+  // 없어진 집은 이름 옆에 바로 알린다. 한줄평을 다 읽고 찾아갔다가 헛걸음하면 안 된다.
+  (spot.closed ? ' <b class="gone">없어짐</b>' : '') +
   '<span class="where">' + spot.region +
   (spot.pickers > 1 ? ' · 픽커 ' + spot.pickers + '명' : '') +
   (spot.picks.length > 1 ? ' · ' + spot.picks.length + '번' : '') +
@@ -186,8 +205,9 @@ $('pages').onclick = event => {
   draw()
 }
 
-for (const id of ['region', 'picker', 'find', 'sort']) {
-  $(id).oninput = () => { page = 1; draw() }
+for (const id of ['region', 'picker', 'find', 'sort', 'showGone']) {
+  // 없어진 곳이 하나도 없으면 그 상자를 두지 않는다.
+  $(id) && ($(id).oninput = () => { page = 1; draw() })
 }
 
 // 고른 보기는 이 브라우저에 남는다. 볼 때마다 다시 고르게 하지 않는다.

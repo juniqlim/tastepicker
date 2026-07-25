@@ -7,10 +7,20 @@ import {
   parsePlace, googleMapUrl, coordsFromGoogle, naverMapMid, coordsFromMashup,
 } from '../src/place.js'
 import { isSponsored } from '../src/sponsor.js'
-import { openDb, savePick, placeOf, dropOthers, digest } from '../src/db.js'
+import { checkUrl, isGone } from '../src/closed.js'
+import {
+  openDb, savePick, placeOf, dropOthers, digest, saveClosed, placesToCheck,
+} from '../src/db.js'
 
 const data = join(import.meta.dirname, '../data')
 const show = (text) => process.stdout.write(`\r\x1b[K${text}`)
+
+// 네이버 장소는 브라우저처럼 묻지 않으면 막는다(429). 이름만 대충 대서는 안 통한다.
+const MOBILE = {
+  'User-Agent':
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' +
+    ' (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+}
 
 // 구글맵 단축 링크는 좌표가 없다. 펼쳐야 나온다. 리다이렉트 주소만 읽고 본문은 안 받는다.
 async function expand(url) {
@@ -73,10 +83,45 @@ for (const picker of targets) {
   show(`  픽 ${picks.length}개, 새로 받은 글 ${fetched}개\n`)
 }
 
+/**
+ * 문 닫은 가게를 가려낸다. 픽커의 글은 남지만 가게는 사라진다.
+ *
+ * 장소가 칠천 곳이라 다 물으면 40분이 걸린다. 하루 몫만 보고 엿새에 한 바퀴 돈다.
+ * 가게가 문을 닫는 건 하루 이틀 다투는 일이 아니라 이 정도로 충분하다.
+ *
+ * 픽커를 지정해 돌릴 때는 건너뛴다. 픽커 하나 붙이려고 장소를 다 물을 이유가 없다.
+ */
+const DAY = 1200
+
+if (only.length === 0) {
+  const today = new Date().toISOString().slice(0, 10)
+  const places = placesToCheck(db, DAY)
+  let gone = 0
+  let missed = 0
+
+  for (const [index, placeId] of places.entries()) {
+    // 남의 서버를 두드리는 일이라 천천히 부른다. 넘김만 보면 되니 본문은 받지 않는다.
+    const response = await fetch(checkUrl(placeId), { method: 'HEAD', headers: MOBILE, redirect: 'manual' })
+      .catch(() => null)
+
+    const closed = response ? isGone(response.status) : null
+    // 막히거나 흔들린 답은 담지 않는다. 다음에 다시 묻는다.
+    if (closed === null) missed++
+    else saveClosed(db, placeId, closed, today)
+    if (closed) gone++
+
+    show(`  장소 ${index + 1}/${places.length}  없어진 곳 ${gone}`)
+    await new Promise((done) => setTimeout(done, 150))
+  }
+
+  show(`  장소 ${places.length}곳 확인, 없어진 곳 ${gone}곳, 못 물은 곳 ${missed}곳\n`)
+}
+
 const { count, located } = db
   .prepare('SELECT COUNT(*) AS count, COUNT(lat) AS located FROM pick')
   .get()
-console.log(`\nDB에 픽 ${count}개, 좌표 ${located}개`)
+const { closed } = db.prepare('SELECT COUNT(*) AS closed FROM place WHERE closed = 1').get()
+console.log(`\nDB에 픽 ${count}개, 좌표 ${located}개, 없어진 가게 ${closed}곳`)
 
 // 매일 돌리므로 새 글이 있을 때만 남기려고 지문을 곁에 둔다.
 writeFileSync(join(data, 'picks.sha'), `${digest(db)}\n`)

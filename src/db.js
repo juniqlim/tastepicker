@@ -53,14 +53,57 @@ function migrate(db) {
   }
 }
 
+/**
+ * 가게가 아직 있는지는 픽이 아니라 장소에 딸린 사실이다.
+ * 한 가게에 픽이 스무 개 붙어도 물어볼 곳은 하나다. 그래서 따로 담는다.
+ */
+const PLACE = `
+  place_id TEXT PRIMARY KEY,
+  closed   INTEGER,
+  checked  TEXT
+`
+
 export function openDb(path) {
   const db = new DatabaseSync(path)
   // 픽커를 여러 명 따로 돌릴 수 있다. 남이 쓰는 중이면 기다렸다 쓴다.
   // 글 하나 받는 데 몇 초씩 걸려서 겹칠 일은 드물고, 기다리면 지나간다.
   db.exec('PRAGMA busy_timeout = 30000')
   db.exec(`CREATE TABLE IF NOT EXISTS pick (${COLUMNS})`)
+  db.exec(`CREATE TABLE IF NOT EXISTS place (${PLACE})`)
   migrate(db)
   return db
+}
+
+/** 물어본 결과를 담는다. 다시 열었으면 없어진 표시를 거둔다. */
+export function saveClosed(db, placeId, closed, checked) {
+  db.prepare(
+    `INSERT INTO place (place_id, closed, checked) VALUES (?, ?, ?)
+     ON CONFLICT(place_id) DO UPDATE SET closed = excluded.closed, checked = excluded.checked`,
+  ).run(placeId, Number(closed), checked)
+}
+
+/** 없어진 가게의 장소 번호. 지도와 목록이 이걸로 가린다. */
+export function closedPlaces(db) {
+  return new Set(
+    db.prepare('SELECT place_id FROM place WHERE closed = 1').all().map((row) => row.place_id),
+  )
+}
+
+/**
+ * 오늘 물어볼 장소. 전체를 매일 훑으면 40분이 걸려서 나눠 본다.
+ * 아직 안 본 곳이 먼저고, 다 봤으면 오래 안 본 곳부터 돌아간다.
+ */
+export function placesToCheck(db, limit) {
+  return db
+    .prepare(
+      `SELECT DISTINCT pick.place_id AS id FROM pick
+       LEFT JOIN place ON place.place_id = pick.place_id
+       WHERE pick.place_id GLOB '[0-9]*' AND NOT pick.place_id GLOB '*[^0-9]*'
+       ORDER BY place.checked IS NOT NULL, place.checked, pick.place_id
+       LIMIT ?`,
+    )
+    .all(limit)
+    .map((row) => row.id)
 }
 
 const marks = FIELDS.map(() => '?').join(', ')
@@ -166,5 +209,7 @@ export function allPicks(db) {
  */
 export function digest(db) {
   const picks = allPicks(db).sort((one, other) => (one.id < other.id ? -1 : 1))
-  return createHash('sha256').update(JSON.stringify(picks)).digest('hex')
+  // 없어진 가게도 지도를 바꾼다. 언제 물었는지는 세지 않는다. 매일 다시 물어서 날마다 달라진다.
+  const gone = [...closedPlaces(db)].sort()
+  return createHash('sha256').update(JSON.stringify({ picks, gone })).digest('hex')
 }
