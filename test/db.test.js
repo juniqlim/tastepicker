@@ -1,7 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { openDb, savePick, savedLinks, allPicks, placeOf, dropOthers, digest } from '../src/db.js'
+import {
+  openDb, savePick, savedLinks, allPicks, placeOf, sponsoredOf, dropOthers, digest,
+} from '../src/db.js'
 
 const 억떡볶이 = {
   picker: 'thddbcjf',
@@ -27,7 +29,10 @@ test('픽을 넣고 그대로 꺼낸다', () => {
 
   savePick(db, 억떡볶이)
 
-  assert.deepEqual(allPicks(db), [{ ...억떡볶이, id: 억떡볶이.link, visited: null }])
+  // 본문을 아직 안 살펴서 대가 여부는 비어 있다.
+  assert.deepEqual(allPicks(db), [
+    { ...억떡볶이, id: 억떡볶이.link, visited: null, sponsored: null },
+  ])
 })
 
 test('장소가 없는 픽도 넣는다', () => {
@@ -131,4 +136,25 @@ test('좌표를 받아둔 글은 다시 받지 않는다', () => {
   savePick(db, 좌표만)
 
   assert.notEqual(placeOf(db, 좌표만.link), undefined)
+})
+
+test('대가를 밝힌 글인지 함께 담는다', () => {
+  const db = openDb(':memory:')
+
+  savePick(db, { ...억떡볶이, sponsored: true })
+
+  assert.equal(allPicks(db)[0].sponsored, true)
+  assert.equal(sponsoredOf(db, 억떡볶이.link), true)
+})
+
+test('대가가 아닌 글과 아직 안 살펴본 글은 다르다', () => {
+  const db = openDb(':memory:')
+
+  savePick(db, { ...억떡볶이, sponsored: false })
+  savePick(db, { ...좌표만 })
+
+  // 살펴서 아니라고 본 글은 다시 받지 않는다. 안 살펴본 글은 받아야 한다.
+  assert.equal(sponsoredOf(db, 억떡볶이.link), false)
+  assert.equal(sponsoredOf(db, 좌표만.link), null)
+  assert.equal(sponsoredOf(db, 'https://blog.naver.com/없는/글'), null)
 })

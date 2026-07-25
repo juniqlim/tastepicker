@@ -21,7 +21,8 @@ const COLUMNS = `
   address    TEXT,
   lat        REAL,
   lng        REAL,
-  tel        TEXT
+  tel        TEXT,
+  sponsored  INTEGER
 `
 
 const FIELDS = COLUMNS.trim()
@@ -34,15 +35,22 @@ const columnsOf = (db) =>
 /** 모아둔 데이터를 버리지 않고 지금 스키마로 옮긴다. */
 function migrate(db) {
   const had = columnsOf(db)
-  if (had.has('id')) return
 
-  const carry = FIELDS.filter((field) => had.has(field)).join(', ')
-  db.exec(`
-    ALTER TABLE pick RENAME TO pick_old;
-    CREATE TABLE pick (${COLUMNS});
-    INSERT INTO pick (id, ${carry}) SELECT link, ${carry} FROM pick_old;
-    DROP TABLE pick_old;
-  `)
+  if (!had.has('id')) {
+    const carry = FIELDS.filter((field) => had.has(field)).join(', ')
+    db.exec(`
+      ALTER TABLE pick RENAME TO pick_old;
+      CREATE TABLE pick (${COLUMNS});
+      INSERT INTO pick (id, ${carry}) SELECT link, ${carry} FROM pick_old;
+      DROP TABLE pick_old;
+    `)
+    return
+  }
+
+  // 칸이 늘어나면 붙인다. 갓 붙은 칸은 비어 있고, 글을 다시 받을 때 채워진다.
+  for (const field of FIELDS) {
+    if (!had.has(field)) db.exec(`ALTER TABLE pick ADD COLUMN ${field}`)
+  }
 }
 
 export function openDb(path) {
@@ -80,6 +88,10 @@ export function savePick(db, pick) {
     lat: place.lat ?? null,
     lng: place.lng ?? null,
     tel: place.tel ?? null,
+    // 아직 본문을 안 살펴본 글은 비워 둔다. 대가가 아니라고 본 것과는 다르다.
+    sponsored: pick.sponsored === undefined || pick.sponsored === null
+      ? null
+      : Number(pick.sponsored),
   }
 
   db.prepare(
@@ -111,6 +123,15 @@ export function placeOf(db, link) {
   }
 }
 
+/**
+ * 본문을 살펴 대가를 판정했는지. 아직 안 살펴본 글은 `null` 이다.
+ * 대가가 아니라고 본 글(`false`)과 구별해야 본문을 두 번 받지 않는다.
+ */
+export function sponsoredOf(db, link) {
+  const row = db.prepare('SELECT sponsored FROM pick WHERE link = ?').get(link)
+  return row && row.sponsored !== null ? Boolean(row.sponsored) : null
+}
+
 /** 규칙이 바뀌어 더는 픽이 아닌 글을 지운다. */
 export function dropOthers(db, picker, ids) {
   const keep = new Set(ids)
@@ -131,6 +152,7 @@ export function allPicks(db) {
     levelBy: row.level_by,
     visited: row.visited,
     link: row.link,
+    sponsored: row.sponsored === null ? null : Boolean(row.sponsored),
     place: row.lat === null ? null : {
       placeId: row.place_id,
       name: row.place_name,
