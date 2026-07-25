@@ -2,5 +2,7 @@ node_modules/
 .env
 .DS_Store
 public/
+.vercel/
 
-# Supabase 키는 .env 에 둔다
+# Supabase 키와 네이버 지도 열쇠는 .env 에 둔다
+# .vercel/ 은 Vercel CLI 가 만드는 프로젝트 연결 정보다
