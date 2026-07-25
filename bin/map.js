@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { PICKERS } from '../src/pickers.js'
 import { toSpots, byWeight } from '../src/spots.js'
 import { pickerColors } from '../src/colors.js'
-import { openDb, allPicks } from '../src/db.js'
+import { openDb, allPicks, closedPlaces } from '../src/db.js'
 
 try {
   process.loadEnvFile(join(import.meta.dirname, '../.env'))
@@ -38,6 +38,13 @@ const picks = allPicks(db).filter((pick) => pick.place && pick.picker !== 'juniq
 const spots = toSpots(picks).sort(byWeight)
 
 /**
+ * 문 닫은 가게. 갈 수 없는 집이라 기본으로 감추고, 켜야 보인다.
+ * 픽커의 글은 지우지 않는다. 그때 그 집에 다녀온 것은 사실이다.
+ */
+const gone = closedPlaces(db)
+for (const spot of spots) spot.closed = gone.has(spot.placeId) || undefined
+
+/**
  * 등급은 픽커마다 다르다. RockHer는 아홉 단계를 쓰고 정직한 청년은 매기지 않는다.
  * 그래서 색은 모든 픽이 가진 픽커로 나누고, 등급은 진하기로만 보인다.
  */
@@ -69,9 +76,16 @@ const fadeOf = Object.fromEntries(BANDS.map((band) => [band.key, band.fade]))
 const layerOf = (pick) =>
   `${pick.picker}:${pick.sponsored ? 'paid' : bandOf[pick.rating] ?? 'plain'}`
 
+/**
+ * 없어진 가게는 픽커별로 가르지 않고 한 묶음으로 둔다.
+ * 어느 픽커가 갔든 지금은 갈 수 없다는 사실이 먼저다. 색도 픽커를 벗고 회색이 된다.
+ */
+const GONE = { key: 'gone', color: '#adb5bd', fade: 0.55 }
+
 // 범례 숫자는 가게 수로 센다. 재방문이 많다고 많아 보이면 안 된다.
-const counts = {}
+const counts = { gone: spots.filter((spot) => spot.closed).length }
 for (const spot of spots) {
+  if (spot.closed) continue
   for (const key of new Set(spot.picks.map(layerOf))) counts[key] = (counts[key] ?? 0) + 1
 }
 
@@ -93,6 +107,12 @@ const legend = PICKERS.map((picker, index) => {
 
   return `<div class="row"><b style="color:${colorOf[picker.id]}">●</b> ${who} ${boxes}</div>`
 }).join('')
+
+// 켜지 않은 채로 둔다. 갈 수 없는 집이 지도를 채우면 갈 수 있는 집이 가려진다.
+const goneRow = counts.gone
+  ? `<div class="row"><b style="color:${GONE.color}">●</b><a>없어진 곳</a>
+      <label><input type="checkbox" data-layer="gone"><span>${counts.gone}</span></label></div>`
+  : ''
 
 const html = `<!doctype html>
 <meta charset="utf-8">
@@ -123,6 +143,9 @@ const html = `<!doctype html>
   .pop i { color:#adb5bd; font-style:normal; font-size:12px }
   .pop em { color:#1971c2; font-style:normal; font-weight:600 }
   .pop .addr { color:#868e96; font-size:12px }
+  /* 없어진 집이라는 표시. 이름 옆에 붙되 이름보다 세지 않게 둔다. */
+  .gone { padding:0 4px; border-radius:3px; background:#f1f3f5;
+          color:#868e96; font-size:11px; font-weight:600; vertical-align:1px }
   #bar select { font:inherit; padding:2px 4px; border:1px solid #dee2e6; border-radius:4px }
   #bar button { width:18px; height:18px; padding:0; border:1px solid #dee2e6; border-radius:4px;
                 background:#fff; color:#868e96; font-size:10px; line-height:1; cursor:pointer }
@@ -169,6 +192,7 @@ const html = `<!doctype html>
   <div id="pickers">
     <div class="row" id="mine"></div>
     ${legend}
+    ${goneRow}
     ${NAVER_KEY ? `<div class="row">
       <a>지도</a>
       <select id="engine">
@@ -176,8 +200,7 @@ const html = `<!doctype html>
         <option value="naver">네이버 지도</option>
       </select>
     </div>` : ''}
-    <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.
-      <a href="/list" style="color:#1971c2">목록으로 →</a></div>
+    <div id="who"><a href="/list" style="color:#1971c2">목록으로 →</a></div>
   </div>
 </div>
 <div id="list">
@@ -201,6 +224,7 @@ const SUPABASE = ${JSON.stringify(SUPABASE)}
 const spots = ${JSON.stringify(spots)}
 const bandOf = ${JSON.stringify(bandOf)}
 const fadeOf = ${JSON.stringify(fadeOf)}
+const GONE = ${JSON.stringify(GONE)}
 // 픽이 어느 칸에 드는지 세는 쪽과 그리는 쪽이 달라선 안 된다. 함수를 그대로 옮겨 심는다.
 const layerOf = ${layerOf}
 const colorOf = ${JSON.stringify(colorOf)}
@@ -411,9 +435,14 @@ const review = pick =>
 // 픽커마다 다르게 적어서 같은 집이 여러 곳처럼 보인다.
 const popupOf = spot =>
   '<div class="pop"><b>' + (spot.name || spot.picks[0].name) + '</b>' +
+  // 없어진 집은 먼저 알린다. 한줄평을 다 읽고 찾아갔다가 헛걸음하면 안 된다.
+  (spot.closed ? ' <b class="gone">없어짐</b>' : '') +
   '<br><span class="addr">' + (spot.address || '') + '</span>' +
   '<ul>' + spot.picks.map(review).join('') + '</ul>' +
-  '<a href="https://map.naver.com/p/entry/place/' + spot.placeId + '" target="_blank">네이버 지도</a></div>'
+  // 없어진 집은 네이버 지도에도 없다. 눌러 봐야 빈 화면이라 링크를 걸지 않는다.
+  (spot.closed ? '' :
+    '<a href="https://map.naver.com/p/entry/place/' + spot.placeId + '" target="_blank">네이버 지도</a>') +
+  '</div>'
 
 // 목록에서 가게를 고르면 그 핀을 열어야 해서 가게마다 마커를 기억해 둔다.
 // 한 가게에 마커가 여럿이다. 어느 픽커를 껐는지에 따라 열 수 있는 마커가 달라진다.
@@ -422,12 +451,18 @@ const markersOf = new Map()
 for (const spot of spots) {
   const popup = popupOf(spot)
 
+  // 없어진 집은 픽커를 가리지 않고 한 묶음에 넣는다. 누가 갔든 지금은 갈 수 없다.
+  const bands = spot.closed
+    ? [GONE.key]
+    : [...new Set(spot.picks.map(layerOf))]
+
   // 한 가게를 여러 픽커가 쓰면 마커도 그만큼 겹쳐 둔다. 필터를 켜고 끌 수 있어야 한다.
-  for (const band of new Set(spot.picks.map(layerOf))) {
+  for (const band of bands) {
     const [picker, level] = band.split(':')
     const marker = (layers[band] ||= map.group()).add({
       lat: spot.lat, lng: spot.lng, popup,
-      color: colorOf[picker], fade: fadeOf[level]
+      color: spot.closed ? GONE.color : colorOf[picker],
+      fade: spot.closed ? GONE.fade : fadeOf[level]
     })
     markersOf.has(spot) || markersOf.set(spot, [])
     markersOf.get(spot).push({ band, marker })
@@ -487,10 +522,12 @@ function bindBoxes() {
   for (const box of document.querySelectorAll('#pickers input')) {
     const key = box.dataset.layer
 
-    if (hidden.has(key)) {
-      box.checked = false
-      layers[key] && layers[key].hide()
-    }
+    // 적어 둔 것이 있으면 그걸 따르고, 없으면 화면이 정한 기본을 적어 둔다.
+    // 없어진 곳은 꺼진 채로 나오는데, 적어 두지 않으면 핀만 남고 상자와 어긋난다.
+    if (hidden.has(key)) box.checked = false
+    else if (!box.checked) hidden.add(key)
+
+    if (!box.checked) layers[key] && layers[key].hide()
 
     box.onchange = () => {
       const layer = layers[key]
@@ -546,8 +583,10 @@ const head = document.getElementById('head')
 const rows = document.getElementById('rows')
 const find = document.getElementById('find')
 
-const onMap = spot => spot.picks.some(pick =>
-  pick.picker !== 'juniqlim' && !hidden.has(layerOf(pick)))
+// 없어진 집은 픽커가 아니라 한 묶음으로 켜고 끈다. 핀과 목록이 어긋나면 안 된다.
+const onMap = spot => spot.closed
+  ? !hidden.has(GONE.key)
+  : spot.picks.some(pick => pick.picker !== 'juniqlim' && !hidden.has(layerOf(pick)))
 
 // 픽커마다 가게를 달리 적는다. 어느 표기로 찾아도 걸리게 다 본다.
 const namesOf = spot => [spot.name, ...spot.picks.map(pick => pick.name)].join(' ').toLowerCase()
@@ -571,6 +610,7 @@ function drawList() {
   for (const spot of found.slice(0, 200)) {
     const item = document.createElement('a')
     item.innerHTML = '<b>' + (spot.name || spot.picks[0].name) + '</b>' +
+      (spot.closed ? ' <b class="gone">없어짐</b>' : '') +
       '<div class="note">' + [...new Set(spot.picks.map(p => pickerName[p.picker]))].join(', ') +
       (spot.picks.length > 1 ? ' · ' + spot.picks.length + '번' : '') + '</div>'
     item.onclick = () => openSpot(spot)
