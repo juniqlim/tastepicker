@@ -49,13 +49,17 @@ const BANDS = [
   { key: 'okay', label: '보통', fade: 0.55, grades: ['괜춘', '쏘쏘', '보통', '평범', '무난'] },
   { key: 'bad', label: '별로', fade: 0.3, grades: ['그닥', '별로'] },
   { key: 'plain', label: '', fade: 0.9, grades: [] },
+  // 대가를 받고 쓴 글. 등급과는 다른 축이지만 칸을 셋으로 늘리면 조합이 불어난다.
+  // 협찬 글의 등급은 근거가 약해서, 등급 칸 대신 이 칸에 넣고 따로 켜고 끈다.
+  { key: 'paid', label: '협찬', fade: 0.35, grades: [] },
 ]
 
 const bandOf = Object.fromEntries(
   BANDS.flatMap((band) => band.grades.map((grade) => [grade, band.key])),
 )
 const fadeOf = Object.fromEntries(BANDS.map((band) => [band.key, band.fade]))
-const layerOf = (pick) => `${pick.picker}:${bandOf[pick.rating] ?? 'plain'}`
+const layerOf = (pick) =>
+  `${pick.picker}:${pick.sponsored ? 'paid' : bandOf[pick.rating] ?? 'plain'}`
 
 // 범례 숫자는 가게 수로 센다. 재방문이 많다고 많아 보이면 안 된다.
 const counts = {}
@@ -90,7 +94,9 @@ const html = `<!doctype html>
 <style>
   body { margin:0; font:14px/1.5 system-ui, sans-serif }
   #map { height:100vh }
-  #bar { position:absolute; z-index:500; top:10px; left:60px; right:10px; max-width:640px;
+  /* 범례도 담긴 줄에 맞춘다. 픽커가 적을 때 화면을 가로로 다 먹을 이유가 없다. */
+  #bar { position:absolute; z-index:500; top:10px; left:60px;
+         width:max-content; max-width:calc(100vw - 80px);
          padding:8px 12px; background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25) }
   #bar .row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:2px 0 }
   #bar .row > a { color:#212529; font-weight:600; margin-right:6px }
@@ -113,15 +119,23 @@ const html = `<!doctype html>
   #bar button { width:18px; height:18px; padding:0; border:1px solid #dee2e6; border-radius:4px;
                 background:#fff; color:#868e96; font-size:10px; line-height:1; cursor:pointer }
   #pickers.off { display:none }
-  /* 폭은 가장 긴 줄에 맞춘다. 짧은 이름만 있을 때 빈자리를 차지할 이유가 없다. */
-  #list { position:absolute; z-index:500; top:10px; right:10px; bottom:10px;
+  /* 폭도 높이도 담긴 줄에 맞춘다. 몇 곳 없을 때 빈자리를 차지할 이유가 없다. */
+  #list { position:absolute; z-index:500; top:10px; right:10px;
           width:max-content; min-width:180px; max-width:320px;
+          max-height:calc(100vh - 20px);
           background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25);
           overflow-y:auto; padding:10px 12px; display:none }
   #list.on { display:block }
   #list h3 { margin:0 0 8px; font-size:14px }
-  #find { width:100%; box-sizing:border-box; font:inherit; margin-bottom:8px;
-          padding:4px 6px; border:1px solid #dee2e6; border-radius:4px }
+  #findbox { position:relative; margin-bottom:8px }
+  #find { width:100%; box-sizing:border-box; font:inherit;
+          padding:4px 24px 4px 6px; border:1px solid #dee2e6; border-radius:4px }
+  /* 지우는 단추는 적었을 때만 나온다. 빈 칸에 지울 것은 없다. */
+  #clear { position:absolute; top:50%; right:4px; transform:translateY(-50%); display:none;
+           padding:0 4px; border:0; background:none; color:#adb5bd; font-size:16px;
+           line-height:1; cursor:pointer }
+  #clear:hover { color:#495057 }
+  #clear.on { display:block }
   #list a { display:block; padding:6px 0; border-top:1px solid #f1f3f5; color:#212529;
             text-decoration:none; cursor:pointer }
   #list a:hover { background:#f8f9fa }
@@ -152,7 +166,10 @@ const html = `<!doctype html>
     <a href="/list" style="color:#1971c2">목록으로 →</a></div>
 </div>
 <div id="list">
-  <input id="find" placeholder="가게 이름으로 찾기" autocomplete="off">
+  <div id="findbox">
+    <input id="find" placeholder="가게 이름으로 찾기" autocomplete="off">
+    <button id="clear" type="button" title="지우기">×</button>
+  </div>
   <h3 id="head"></h3>
   <div id="rows"></div>
 </div>
@@ -164,6 +181,8 @@ const SUPABASE = ${JSON.stringify(SUPABASE)}
 const spots = ${JSON.stringify(spots)}
 const bandOf = ${JSON.stringify(bandOf)}
 const fadeOf = ${JSON.stringify(fadeOf)}
+// 픽이 어느 칸에 드는지 세는 쪽과 그리는 쪽이 달라선 안 된다. 함수를 그대로 옮겨 심는다.
+const layerOf = ${layerOf}
 const colorOf = ${JSON.stringify(Object.fromEntries(PICKERS.map((p, i) => [p.id, COLORS[i % COLORS.length]])))}
 const pickerName = ${JSON.stringify(Object.fromEntries(PICKERS.map((p) => [p.id, p.name])))}
 
@@ -357,7 +376,7 @@ for (const spot of spots) {
   const popup = popupOf(spot)
 
   // 한 가게를 여러 픽커가 쓰면 마커도 그만큼 겹쳐 둔다. 필터를 켜고 끌 수 있어야 한다.
-  for (const band of new Set(spot.picks.map(p => p.picker + ':' + (bandOf[p.rating] || 'plain')))) {
+  for (const band of new Set(spot.picks.map(layerOf))) {
     const [picker, level] = band.split(':')
     const marker = (layers[band] ||= map.group()).add({
       lat: spot.lat, lng: spot.lng, popup,
@@ -483,7 +502,7 @@ const find = document.getElementById('find')
 const SEEN = 'tastepicker:seelist'
 
 const onMap = spot => spot.picks.some(pick =>
-  pick.picker !== 'juniqlim' && !hidden.has(pick.picker + ':' + (bandOf[pick.rating] || 'plain')))
+  pick.picker !== 'juniqlim' && !hidden.has(layerOf(pick)))
 
 // 픽커마다 가게를 달리 적는다. 어느 표기로 찾아도 걸리게 다 본다.
 const namesOf = spot => [spot.name, ...spot.picks.map(pick => pick.name)].join(' ').toLowerCase()
@@ -521,7 +540,20 @@ function drawList() {
   }
 }
 
-find.oninput = drawList
+const clear = document.getElementById('clear')
+
+find.oninput = () => {
+  clear.classList.toggle('on', !!find.value)
+  drawList()
+}
+
+// 지우면 다시 이 화면의 가게로 돌아온다.
+clear.onclick = () => {
+  find.value = ''
+  clear.classList.remove('on')
+  drawList()
+  find.focus()
+}
 
 // 픽커가 여덟이라 범례가 화면을 많이 먹는다. 접어 두고 쓸 수 있게 한다.
 // 접었는지도 브라우저에 남는다. 매번 접게 하면 접는 뜻이 없다.
