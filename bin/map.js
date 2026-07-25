@@ -185,9 +185,9 @@ const html = `<!doctype html>
 </style>
 <div id="bar">
   <div class="row"><a>픽커</a>
-    <button id="all" type="button" title="모두 끄기">☑</button>
-    <button id="fold" type="button" title="접기">▾</button>
     <button id="here" type="button" title="내가 있는 데로">◎</button>
+    <button id="fold" type="button" title="접기">▾</button>
+    <button id="all" type="button" title="모두 끄기">☑</button>
   </div>
   <div id="pickers">
     <div class="row" id="mine"></div>
