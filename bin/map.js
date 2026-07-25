@@ -185,29 +185,74 @@ const maps = {
 
   naver() {
     const map = new naver.maps.Map('map')
-    // 네이버에는 묶음이 없어서 마커를 들고 있다가 하나씩 붙였다 뗀다.
-    // 말풍선도 하나만 두고 내용을 갈아 끼운다. 여럿을 띄우면 겹쳐서 못 읽는다.
+    // 말풍선은 하나만 두고 내용을 갈아 끼운다. 여럿을 띄우면 겹쳐서 못 읽는다.
     const bubble = new naver.maps.InfoWindow({ maxWidth: 320, borderColor: '#dee2e6' })
+
+    /**
+     * 네이버 마커는 하나가 DOM 하나다. 만 개를 붙이면 지도가 버벅인다.
+     * 그래서 화면에 든 것만, 그것도 겹치는 집부터 이만큼만 붙이고 나머지는 뗀다.
+     * 핀을 지우는 게 아니라 다가가면 다시 붙는다. 옆 목록이 200곳만 세우는 것과 같은 사정이다.
+     */
+    const LIMIT = 1200
+    // 겹치는 집 순으로 쌓인다. 앞이 더 두꺼운 집이라 화면이 붐빌 때 먼저 살아남는다.
+    const pins = []
+
+    const attach = (pin) => {
+      if (!pin.marker) {
+        pin.marker = new naver.maps.Marker({
+          position: pin.at,
+          icon: { content: dot(pin.color, pin.fade), anchor: new naver.maps.Point(7, 7) }
+        })
+        naver.maps.Event.addListener(pin.marker, 'click', () => pop(pin))
+      }
+      pin.marker.getMap() || pin.marker.setMap(map)
+    }
+
+    const pop = (pin) => {
+      attach(pin)
+      bubble.setContent(pin.popup)
+      bubble.open(map, pin.marker)
+    }
+
+    const draw = () => {
+      const box = map.getBounds()
+      let drawn = 0
+
+      for (const pin of pins) {
+        if (pin.on && drawn < LIMIT && box.hasLatLng(pin.at)) {
+          attach(pin)
+          drawn++
+        } else if (pin.marker) {
+          pin.marker.setMap(null)
+        }
+      }
+    }
+    naver.maps.Event.addListener(map, 'idle', draw)
 
     return {
       group() {
-        const markers = []
-        let on = true
+        const mine = []
 
         return {
-          show() { on = true; for (const marker of markers) marker.setMap(map) },
-          hide() { on = false; for (const marker of markers) marker.setMap(null) },
-          add(pin) {
-            const at = new naver.maps.LatLng(pin.lat, pin.lng)
-            const marker = new naver.maps.Marker({
-              position: at, map: on ? map : null,
-              icon: { content: dot(pin.color, pin.fade), anchor: new naver.maps.Point(7, 7) }
-            })
-            const show = () => { bubble.setContent(pin.popup); bubble.open(map, marker) }
-            naver.maps.Event.addListener(marker, 'click', show)
-            markers.push(marker)
+          show() { for (const pin of mine) pin.on = true; draw() },
+          // 끈 자리만큼 상한이 남아서 못 붙던 핀이 붙을 수 있다. 그래서 다시 그린다.
+          hide() {
+            for (const pin of mine) {
+              pin.on = false
+              pin.marker && pin.marker.setMap(null)
+            }
+            draw()
+          },
+          add(spec) {
+            const pin = {
+              at: new naver.maps.LatLng(spec.lat, spec.lng),
+              color: spec.color, fade: spec.fade, popup: spec.popup,
+              on: true, marker: null,
+            }
+            pins.push(pin)
+            mine.push(pin)
 
-            return { open() { map.setCenter(at); map.setZoom(17); show() } }
+            return { open() { map.setCenter(pin.at); map.setZoom(17); pop(pin) } }
           }
         }
       },
@@ -215,6 +260,7 @@ const maps = {
         const box = new naver.maps.LatLngBounds()
         for (const [lat, lng] of coords) box.extend(new naver.maps.LatLng(lat, lng))
         map.fitBounds(box, { top: 40, right: 40, bottom: 40, left: 40 })
+        draw()
       },
       has: (lat, lng) => map.getBounds().hasLatLng(new naver.maps.LatLng(lat, lng)),
       onStill: run => naver.maps.Event.addListener(map, 'idle', run)
