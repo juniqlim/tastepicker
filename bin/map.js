@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
-import { toSpots, byWeight, toRegions, regionOptions } from '../src/spots.js'
+import { toSpots, byWeight } from '../src/spots.js'
 import { pickerColors } from '../src/colors.js'
 import { openDb, allPicks } from '../src/db.js'
 
@@ -36,7 +36,6 @@ const picks = allPicks(db).filter((pick) => pick.place && pick.picker !== 'juniq
  */
 // 겹치는 집이 먼저 오게 미리 정렬해 둔다. 브라우저는 걸러내기만 하면 순서가 지켜진다.
 const spots = toSpots(picks).sort(byWeight)
-const regions = toRegions(spots)
 
 /**
  * 등급은 픽커마다 다르다. RockHer는 아홉 단계를 쓰고 정직한 청년은 매기지 않는다.
@@ -129,12 +128,19 @@ const html = `<!doctype html>
                 background:#fff; color:#868e96; font-size:10px; line-height:1; cursor:pointer }
   #pickers.off { display:none }
   /* 폭도 높이도 담긴 줄에 맞춘다. 몇 곳 없을 때 빈자리를 차지할 이유가 없다. */
+  /* 좁은 화면에서는 목록이 지도를 다 덮는다. 지도가 반은 남게 잡아 둔다. */
   #list { position:absolute; z-index:500; top:10px; right:10px;
-          width:max-content; min-width:180px; max-width:320px;
+          width:max-content; min-width:180px; max-width:min(320px, 62vw);
           max-height:calc(100vh - 20px);
           background:#fff; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,.25);
-          overflow-y:auto; padding:10px 12px; display:none }
-  #list.on { display:block }
+          overflow-y:auto; padding:10px 12px }
+  /* 접으면 단추만 남는다. 다 숨기면 다시 펼 길이 없다. */
+  #list.off { min-width:0; padding:6px }
+  #list.off #listBody { display:none }
+  #foldList { float:right; margin:-2px -4px 0 6px; width:18px; height:18px; padding:0;
+              border:1px solid #dee2e6; border-radius:4px; background:#fff; color:#868e96;
+              font-size:10px; line-height:1; cursor:pointer }
+  #list.off #foldList { float:none; display:block; margin:0 }
   #list h3 { margin:0 0 8px; font-size:14px }
   #findbox { position:relative; margin-bottom:8px }
   #find { width:100%; box-sizing:border-box; font:inherit;
@@ -153,35 +159,33 @@ const html = `<!doctype html>
 <div id="bar">
   <div class="row"><a>픽커</a>
     <button id="all" type="button" title="모두 끄기">☑</button>
+    <button id="here" type="button" title="내가 있는 데로">◎</button>
     <button id="fold" type="button" title="접기">▾</button>
   </div>
   <div id="pickers">
     <div class="row" id="mine"></div>
     ${legend}
+    ${NAVER_KEY ? `<div class="row">
+      <a>지도</a>
+      <select id="engine">
+        <option value="osm">OpenStreetMap</option>
+        <option value="naver">네이버 지도</option>
+      </select>
+    </div>` : ''}
+    <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.
+      <a href="/list" style="color:#1971c2">목록으로 →</a></div>
   </div>
-  <div class="row">
-    <a>지역</a>
-    <select id="region"><option value="">고르면 그리로 갑니다</option>${regionOptions(regions)}</select>
-    <button id="here" type="button" title="내가 있는 데로">◎</button>
-    <label><input type="checkbox" id="seeList" checked> 이 화면의 가게</label>
-  </div>
-  ${NAVER_KEY ? `<div class="row">
-    <a>지도</a>
-    <select id="engine">
-      <option value="osm">OpenStreetMap</option>
-      <option value="naver">네이버 지도</option>
-    </select>
-  </div>` : ''}
-  <div id="who">핀을 누르면 원문으로 갑니다. 등급은 픽커마다 다릅니다.
-    <a href="/list" style="color:#1971c2">목록으로 →</a></div>
 </div>
 <div id="list">
-  <div id="findbox">
-    <input id="find" placeholder="가게 이름으로 찾기" autocomplete="off">
-    <button id="clear" type="button" title="지우기">×</button>
+  <button id="foldList" type="button" title="접기">▸</button>
+  <div id="listBody">
+    <div id="findbox">
+      <input id="find" placeholder="가게 이름으로 찾기" autocomplete="off">
+      <button id="clear" type="button" title="지우기">×</button>
+    </div>
+    <h3 id="head"></h3>
+    <div id="rows"></div>
   </div>
-  <h3 id="head"></h3>
-  <div id="rows"></div>
 </div>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -532,11 +536,9 @@ showAll()
  * 핀을 끈 픽커의 가게는 목록에서도 뺀다. 핀은 없는데 목록에 남으면 두 화면이 어긋난다.
  */
 const listBox = document.getElementById('list')
-const seeList = document.getElementById('seeList')
 const head = document.getElementById('head')
 const rows = document.getElementById('rows')
 const find = document.getElementById('find')
-const SEEN = 'tastepicker:seelist'
 
 const onMap = spot => spot.picks.some(pick =>
   pick.picker !== 'juniqlim' && !hidden.has(layerOf(pick)))
@@ -545,7 +547,7 @@ const onMap = spot => spot.picks.some(pick =>
 const namesOf = spot => [spot.name, ...spot.picks.map(pick => pick.name)].join(' ').toLowerCase()
 
 function drawList() {
-  if (!seeList.checked) return
+  if (listBox.classList.contains('off')) return
 
   const query = find.value.trim().toLowerCase()
 
@@ -592,53 +594,42 @@ clear.onclick = () => {
   find.focus()
 }
 
-// 픽커가 여덟이라 범례가 화면을 많이 먹는다. 접어 두고 쓸 수 있게 한다.
-// 접었는지도 브라우저에 남는다. 매번 접게 하면 접는 뜻이 없다.
-const FOLD = 'tastepicker:fold'
-const pickers = document.getElementById('pickers')
-const fold = document.getElementById('fold')
+/**
+ * 두 상자가 화면을 많이 먹는다. 접어 두고 쓸 수 있게 한다.
+ * 폰은 상자 둘이 지도를 거의 다 덮어서, 처음 열 때는 접어 둔다.
+ * 접었는지는 브라우저에 남는다. 매번 접게 하면 접는 뜻이 없다.
+ */
+const PHONE = matchMedia('(max-width: 640px)').matches
+const foldedAt = (key) => {
+  const kept = localStorage.getItem(key)
+  return kept === null ? PHONE : kept === 'on'
+}
 
 // 화살표만 둔다. 어느 쪽으로 열리는지 보이면 글자는 없어도 안다.
-const showFold = (folded) => {
-  pickers.classList.toggle('off', folded)
-  fold.textContent = folded ? '▸' : '▾'
-  fold.title = folded ? '펴기' : '접기'
+const foldable = (key, box, button, arrows) => {
+  const show = (folded) => {
+    box.classList.toggle('off', folded)
+    button.textContent = folded ? arrows[1] : arrows[0]
+    button.title = folded ? '펴기' : '접기'
+  }
+
+  button.onclick = () => {
+    const folded = !box.classList.contains('off')
+    localStorage.setItem(key, folded ? 'on' : 'off')
+    show(folded)
+    drawList()
+  }
+
+  show(foldedAt(key))
 }
 
-showFold(localStorage.getItem(FOLD) === 'on')
+foldable('tastepicker:fold', document.getElementById('pickers'),
+  document.getElementById('fold'), ['▾', '▸'])
 
-fold.onclick = () => {
-  const folded = !pickers.classList.contains('off')
-  localStorage.setItem(FOLD, folded ? 'on' : 'off')
-  showFold(folded)
-}
-
-// 목록을 여는지도 이 브라우저에 남는다. 켜 두고 열되, 지도만 보고 싶으면 끈 것을 적는다.
-// 핀만 보면 어느 집인지 모르니 열려 있는 쪽이 처음 오는 사람에게 낫다.
-seeList.checked = localStorage.getItem(SEEN) !== 'off'
-listBox.classList.toggle('on', seeList.checked)
-
-seeList.onchange = () => {
-  localStorage.setItem(SEEN, seeList.checked ? 'on' : 'off')
-  listBox.classList.toggle('on', seeList.checked)
-  drawList()
-}
+foldable('tastepicker:list', listBox,
+  document.getElementById('foldList'), ['▸', '◂'])
 
 map.onStill(drawList)
-
-// 지역을 고르면 지도를 그리로 옮긴다. 목록은 화면을 따라오므로 저절로 그 지역이 된다.
-// 픽커를 고르는 사람에게는 '어디' 도 고르는 기준이다.
-document.getElementById('region').onchange = (event) => {
-  const region = event.target.value
-  if (!region) return
-
-  // 시도만 골랐으면 그 아래를 다 받는다. '서울' 은 '서울 마포구' 를 품는다.
-  const here = spots.filter(spot =>
-    spot.region === region || (spot.region || '').startsWith(region + ' '))
-  if (!here.length) return
-
-  map.fitBounds(here.map(spot => [spot.lat, spot.lng]))
-}
 
 // 해외 픽이 섞여 있어 전체로 맞추면 세계 지도가 된다. 국내 픽 기준으로 연다.
 const inHome = (lat, lng) => lat > 33 && lat < 39 && lng > 124 && lng < 132
