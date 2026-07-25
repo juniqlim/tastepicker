@@ -54,3 +54,25 @@ test('부등호로 감싼 문장을 태그로 보지 않는다', () => {
   // 픽커가 부등호로 감싸 두기도 한다. 태그로 보고 지우면 문구째 사라진다.
   assert.equal(isSponsored(html.replace(/&lt;/g, '<').replace(/&gt;/g, '>')), true)
 })
+
+test('체험단이 준 배너 그림으로도 가려낸다', () => {
+  // 배너는 alt 가 비어 있어 글자로는 잡히지 않는다. 주소로만 안다.
+  const banners = [
+    'https://www.revu.net/campaign/img.php?p=42f2109e&v=4',
+    'https://www.reviewnote.co.kr/img/banner.png',
+    'https://firebasestorage.googleapis.com/v0/b/reviewnote-e92d9.appspot.com/o/gongjeong%2F09262c.png',
+    'https://www.storyn.kr/img/sponsor.jpg',
+    'https://mrblog.net/banner.png',
+    'https://xn--939au0g4vj8sq.net/banner.jpg',
+  ]
+
+  for (const src of banners) {
+    assert.equal(isSponsored(`<p>맛있었다</p><img src="${src}" alt="" />`), true, src)
+  }
+})
+
+test('네이버에 올린 사진은 배너가 아니다', () => {
+  const html = '<img src="https://blogthumb.pstatic.net/MjAyNjA1MDZfMjMg/IMG_8068.jpg" alt="" />'
+
+  assert.equal(isSponsored(html), false)
+})
