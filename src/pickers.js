@@ -177,7 +177,120 @@ export const PICKERS = [
       return null
     },
   },
+  {
+    id: 'phjsunflower',
+    name: '꽃씨',
+    url: 'https://blog.naver.com/phjsunflower',
+    // '남양주 새암분식 / 더글로리 촬영지 라볶이 순대'
+    // 홍아와 같이 제목에 형식이 없다. 맛집 글은 카테고리 하나에 모여 있어 그것으로 좁힌다.
+    //
+    // 빗금으로 가게와 한줄평을 가른 글이 셋에 둘이다. 그런데 시기마다 앞뒤가 뒤집힌다.
+    // 옛 글은 '지역 종류 / 한줄평 가게명', 요즘 글은 '지역 가게명 / 한줄평' 이다.
+    // 빗금 앞이 종류나 음식 이름으로 끝나면 거기엔 가게명이 없다는 뜻이라, 그것으로 가른다.
+    //
+    // 빗금이 없으면 종류 다음이 가게명이다. 종류가 없으면 가게명을 집을 수 없어 버린다.
+    read({ title, categoryNo }) {
+      if (categoryNo !== EATS) return null
+      // 대괄호로 연 옛 글과 편의점·봉지면 같은 제품 글은 갈 가게가 없다.
+      if (title.startsWith('[') || GOODS.test(title)) return null
+
+      const parts = title.split('/').map((part) => part.trim()).filter(Boolean)
+      if (parts.length > 2) return null
+
+      const [front, note] = parts
+      const words = front.split(/\s+/)
+      if (MENU.has(words.at(-1))) return null
+
+      if (parts.length === 1) return beyondKind(words)
+      if (!KINDS.has(words.at(-1))) {
+        const [name, region] = splitShop(words)
+        return region ? shop(region.replace(TAIL, ''), name, note) : null
+      }
+
+      // 빗금 뒤는 '한줄평 가게명' 이다. 가게명만 있으면 어느 쪽인지 알 수 없어 버린다.
+      const rest = note.split(/\s+/)
+      if (rest.length < 2) return null
+
+      const [name, said] = splitShop(rest)
+      return KINDS.has(name) ? null : shop(words.slice(0, -1).join(' '), name, said)
+    },
+  },
 ]
+
+/** 꽃씨의 맛집 카테고리. 호텔·반려견·제품 글은 다른 번호에 있다. */
+const EATS = '33'
+
+/** 가게가 아니라 메뉴나 물건을 다룬 글. 갈 곳이 없다. */
+const GOODS = /(편의점|봉지면|밀키트|택배|레시피|신상|공구)/
+
+/**
+ * 가게 종류와 음식 이름. 제목의 이 낱말은 가게명이 아니다.
+ * 꽃씨는 가게명을 앞에 두기도 뒤에 두기도 해서, 이 낱말이 그 자리를 가른다.
+ */
+const KINDS = new Set([
+  '맛집', '카페', '술집', '밥집', '고기집', '분식', '분식집', '빵집', '베이커리', '디저트',
+  '중국집', '횟집', '이자카야', '포차', '주점', '식당', '기사식당', '전문점', '치킨집',
+  '국밥집', '먹거리', '간식', '야식', '점심', '저녁', '브런치', '회식장소', '한정식', '뷔페',
+  '위스키바', '와인바', '호프', '바', '도시락', '배달', '포장',
+  '떡볶이', '치킨', '만두', '칼국수', '김밥', '돈까스', '김치찌개', '순대국', '돼지국밥',
+  '국수', '막국수', '갈비', '떡갈비', '곱창', '소곱창', '밀면', '케이크', '초밥', '팥빙수',
+  '족발', '두부', '닭강정', '냉면', '평양냉면', '콩국수', '두루치기', '짬뽕', '삼겹살',
+  '우동', '라면', '피자', '수제비', '보쌈', '빙수', '커피', '도넛', '호떡',
+])
+
+/** 가게가 아니라 차림표를 훑은 글. '이삭토스트 메뉴 / 모짜올리구마 햄치즈토스트' */
+const MENU = new Set(['메뉴', '신메뉴', '메뉴추천', '후기', '리뷰', '모음', '할인'])
+
+/** 가게명 앞에 끼워 넣는 꾸밈말. 건너뛰고 그 뒤를 가게명으로 본다. */
+const FLUFF = new Set(['추천', '핫플', '노포', '원조', '유명', '베스트'])
+
+/** '본점', '2호점', '강남점'. 가게명에 붙인다. */
+const BRANCH = /^(본점|본관|\d+호점|.+점)$/
+
+const shop = (region, name, note) => ({
+  region, name, note, rating: null, level: null, levelBy: null,
+})
+
+/**
+ * 낱말 뒤에서 가게명을 떼어낸다. 지점명은 가게명에 붙는다.
+ * '웨스트진 베이커리 본점' 처럼 종류가 상호에 든 집이 있어, 지점명 앞이 종류면 하나 더 받는다.
+ * 앞이 꾸밈말이면 지점명까지가 상호다. '노포 송림반점'
+ */
+function splitShop(words) {
+  const before = words.at(-2)
+  const size = words.length >= 2 && BRANCH.test(words.at(-1))
+    ? (KINDS.has(before) ? 3 : FLUFF.has(before) ? 1 : 2)
+    : 1
+
+  return [words.slice(-size).join(' '), words.slice(0, -size).join(' ')]
+}
+
+/** 빗금이 없는 글. 종류가 지역과 가게명을 가른다. '안산 고잔동 맛집 제주화로집 참숯화로' */
+function beyondKind(words) {
+  const at = words.findIndex((word) => KINDS.has(word))
+  if (at < 1) return null
+
+  // 종류와 꾸밈말이 이어 붙기도 한다. '아현 디저트 카페 푸링', '청량리 밥집 추천 왕엄마돈가스김밥'
+  let head = at + 1
+  while (KINDS.has(words[head]) || FLUFF.has(words[head])) head++
+  if (head >= words.length - 1) return null
+
+  // '행신 웨스트진 베이커리 본점 엘리게이터 파이' — 지점명이 먼저 오면 상호가 종류를 안고 앞에 있다.
+  if (BRANCH.test(words[head])) {
+    return shop(
+      words.slice(0, at - 1).join(' '),
+      words.slice(at - 1, head + 1).join(' '),
+      words.slice(head + 1).join(' '),
+    )
+  }
+
+  const size = BRANCH.test(words[head + 1] ?? '') ? 2 : 1
+  return shop(
+    words.slice(0, at).join(' ').replace(TAIL, ''),
+    words.slice(head, head + size).join(' '),
+    words.slice(head + size).join(' '),
+  )
+}
 
 /** 홍아의 맛집 카테고리. 하위 카테고리(떡동여지도)까지 부모 번호가 같다. */
 const EAT = '10'

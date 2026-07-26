@@ -329,6 +329,91 @@ test('홍아 - 가게를 집을 수 없는 협찬·묶음 글은 거른다', () 
   assert.equal(read('[부산 맛집 모음] : 먹기만 하고온 식도락여행 , 찐맛집만 모은 부산 맛집리스트'), null)
 })
 
+test('꽃씨 - 빗금 앞이 지역과 가게명이다', () => {
+  const pick = pickerOf('phjsunflower').read({
+    title: '남양주 새암분식 / 더글로리 촬영지 라볶이 순대',
+    categoryNo: '33',
+  })
+
+  assert.equal(pick.region, '남양주')
+  assert.equal(pick.name, '새암분식')
+  assert.equal(pick.note, '더글로리 촬영지 라볶이 순대')
+})
+
+test('꽃씨 - 빗금 앞이 종류로 끝나면 가게명은 빗금 뒤 끝에 있다', () => {
+  const pick = pickerOf('phjsunflower').read({
+    title: '을지로 맛집 / 사골칼국수 손만두 을지손칼국수',
+    categoryNo: '33',
+  })
+
+  assert.equal(pick.region, '을지로')
+  assert.equal(pick.name, '을지손칼국수')
+  assert.equal(pick.note, '사골칼국수 손만두')
+})
+
+test('꽃씨 - 음식 이름도 가게명으로 보지 않는다', () => {
+  const name = (title) => pickerOf('phjsunflower').read({ title, categoryNo: '33' }).name
+
+  assert.equal(name('을지로 갈비 / LA갈비 오삼불고기 용강식당'), '용강식당')
+  assert.equal(name('대치동 콩국수 / 365일 콩국수 하는 맛자랑'), '맛자랑')
+})
+
+test('꽃씨 - 지점명은 가게명에 붙인다', () => {
+  const name = (title) => pickerOf('phjsunflower').read({ title, categoryNo: '33' }).name
+
+  assert.equal(name('대전 숯골원냉면 본점 / 평양냉면 꿩냉면'), '숯골원냉면 본점')
+  assert.equal(name('왕길동 맛집 / 불고기 태백산 본점'), '태백산 본점')
+  assert.equal(name('제주 현지인 맛집 / 노포 송림반점'), '송림반점')
+})
+
+test('꽃씨 - 종류가 가게명에 붙어 있으면 함께 받는다', () => {
+  const name = (title) => pickerOf('phjsunflower').read({ title, categoryNo: '33' }).name
+
+  assert.equal(name('행신동 빵집 / 엘리게이터 파이 웨스트진 베이커리 본점'), '웨스트진 베이커리 본점')
+  assert.equal(name('행신 웨스트진 베이커리 본점 엘리게이터 파이 슈크림빵'), '웨스트진 베이커리 본점')
+})
+
+test('꽃씨 - 빗금이 없으면 종류 뒤가 가게명이다', () => {
+  const pick = pickerOf('phjsunflower').read({
+    title: '안산 고잔동 맛집 제주화로집 참숯화로 무한리필 고기집  회식장소',
+    categoryNo: '33',
+  })
+
+  assert.equal(pick.region, '안산 고잔동')
+  assert.equal(pick.name, '제주화로집')
+  assert.equal(pick.note, '참숯화로 무한리필 고기집 회식장소')
+})
+
+test('꽃씨 - 종류와 꾸밈말이 이어지면 그 뒤가 가게명이다', () => {
+  const name = (title) => pickerOf('phjsunflower').read({ title, categoryNo: '33' }).name
+
+  assert.equal(name('아현 디저트 카페 푸링 일본식 푸딩 전문점'), '푸링')
+  assert.equal(name('목동 점심 맛집 일미락 본점 꺼먹돼지 두루치기 솥밥'), '일미락 본점')
+  assert.equal(name('신촌 맛집 추천 미스터서왕만두 육즙가득 소룡포 군만두'), '미스터서왕만두')
+})
+
+test('꽃씨 - 맛집 카테고리가 아니면 거른다', () => {
+  const read = pickerOf('phjsunflower').read
+
+  assert.equal(read({ title: '부산 해운대 호텔 라마다앙코르 가격 위치', categoryNo: '21' }), null)
+  assert.equal(read({ title: '[토이푸들] 내이름은 쪼꼬 신생아 by꽃집아가씨', categoryNo: '23' }), null)
+})
+
+test('꽃씨 - 가게가 아닌 메뉴·제품 글은 거른다', () => {
+  const read = (title) => pickerOf('phjsunflower').read({ title, categoryNo: '33' })
+
+  assert.equal(read('이삭토스트 메뉴 / 모짜올리구마  햄치즈토스트'), null)
+  assert.equal(read('GS25 편의점 신상 로로멜로 아이스 브륄레 마카다미아 아이스크림 후기'), null)
+  assert.equal(read('로제 불닭 납작당면 / 로제 불닭 볶음면 봉지면 라면기'), null)
+})
+
+test('꽃씨 - 가게명을 집을 수 없는 글은 거른다', () => {
+  const read = (title) => pickerOf('phjsunflower').read({ title, categoryNo: '33' })
+
+  assert.equal(read('전주 한옥마을 길거리야 바게트버거 생과일주스'), null)
+  assert.equal(read('[선릉역맛집] 특급호텔요리사 이자카야   다이코쿠야 에비스  by꽃집아가씨'), null)
+})
+
 test('새 픽커들은 등급을 안 매기니 비워둔다', () => {
   const 픽 = [
     pickerOf('tastesherlok').read({ title: '1번째 식당 / 집 / 안양: 좋다' }),
@@ -337,6 +422,7 @@ test('새 픽커들은 등급을 안 매기니 비워둔다', () => {
     pickerOf('ikky21').read({ title: '[안양] 좋다 - 집' }),
     pickerOf('mardukas').read({ title: '[집] 안양 - 좋다' }),
     pickerOf('dkfl279').read({ title: "안양 '집' 좋다", categoryNo: '10' }),
+    pickerOf('phjsunflower').read({ title: '안양 집 / 좋다', categoryNo: '33' }),
   ]
 
   for (const pick of 픽) {
