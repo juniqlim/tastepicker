@@ -90,16 +90,25 @@ export function closedPlaces(db) {
 }
 
 /**
- * 오늘 물어볼 장소. 전체를 매일 훑으면 40분이 걸려서 나눠 본다.
+ * 오늘 물어볼 장소. 하루에 물을 수 있는 양이 있어 나눠 본다.
  * 아직 안 본 곳이 먼저고, 다 봤으면 오래 안 본 곳부터 돌아간다.
+ *
+ * 안 본 곳 사이에서는 옛 글의 가게부터 본다. 그런 집일수록 이미 없어졌다.
+ * 가장 오래된 다섯 중 둘이 없어졌는데, 가장 최근 다섯 중에는 하나도 안 된다.
+ *
+ * 글 날짜를 담지 않아 나이는 네이버 글 번호로 본다. 시간이 갈수록 커지고 픽커끼리도 견줄 수 있다.
+ * 같은 가게에 글이 여럿이면 가장 오래된 것으로 줄을 선다. 옛날에 다녀간 집이면 그만큼 오래된 집이다.
  */
+const AGE = "CAST(substr(pick.link, length(rtrim(pick.link, '0123456789')) + 1) AS INTEGER)"
+
 export function placesToCheck(db, limit) {
   return db
     .prepare(
-      `SELECT DISTINCT pick.place_id AS id FROM pick
+      `SELECT pick.place_id AS id, MIN(${AGE}) AS oldest FROM pick
        LEFT JOIN place ON place.place_id = pick.place_id
        WHERE pick.place_id GLOB '[0-9]*' AND NOT pick.place_id GLOB '*[^0-9]*'
-       ORDER BY place.checked IS NOT NULL, place.checked, pick.place_id
+       GROUP BY pick.place_id
+       ORDER BY place.checked IS NOT NULL, place.checked, oldest
        LIMIT ?`,
     )
     .all(limit)

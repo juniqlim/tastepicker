@@ -79,32 +79,53 @@ for (const picker of targets) {
 /**
  * 문 닫은 가게를 가려낸다. 픽커의 글은 남지만 가게는 사라진다.
  *
- * 장소가 칠천 곳인데 하루에 물을 수 있는 양이 따로 있다. 천 몇 백 곳을 넘기면 막힌다.
- * 그래서 하루 몫만 보고 엿새에 한 바퀴 돈다.
- * 가게가 문을 닫는 건 하루 이틀 다투는 일이 아니라 이 정도로 충분하다.
+ * 이백 몇 십 곳을 물으면 막힌다(429). 십 분쯤 쉬면 다시 통한다.
+ * 그래서 두 번까지 쉬었다 잇고, 세 번째 막히면 오늘 몫은 거기서 끝낸다.
+ * 남은 곳은 내일 이어서 묻는다. 가게가 문을 닫는 건 하루 이틀 다투는 일이 아니다.
  *
  * 픽커를 지정해 돌릴 때는 건너뛴다. 픽커 하나 붙이려고 장소를 다 물을 이유가 없다.
  */
 const DAY = 1200
+const REST = 600_000
+const RESTS = 2
+// 잇달아 이만큼 막히면 회복될 때까지 쉰다. 계속 두드리면 회복보다 빨리 쓴다.
+const GIVE_UP = 20
 
 if (only.length === 0) {
   const today = new Date().toISOString().slice(0, 10)
   const places = placesToCheck(db, DAY)
   let gone = 0
   let missed = 0
+  let blocked = 0
+  let rested = 0
 
   for (const [index, placeId] of places.entries()) {
     // 하나씩 차례로 묻는다. 한꺼번에 부르면 열에 여덟이 막힌다(429).
     const closed = isGone(await askPlace(placeId))
+
     // 막히거나 흔들린 답은 담지 않는다. 다음에 다시 묻는다.
-    if (closed === null) missed++
-    else saveClosed(db, placeId, closed, today)
+    if (closed === null) {
+      missed++
+      if (++blocked < GIVE_UP) continue
+      if (rested++ === RESTS) {
+        show(`  ${index + 1}번째에서 막혔다. 오늘은 여기까지 한다\n`)
+        break
+      }
+
+      show(`  ${index + 1}번째에서 막혔다. 10분 쉰다\n`)
+      await new Promise((done) => setTimeout(done, REST))
+      blocked = 0
+      continue
+    }
+
+    blocked = 0
+    saveClosed(db, placeId, closed, today)
     if (closed) gone++
 
     show(`  장소 ${index + 1}/${places.length}  없어진 곳 ${gone}`)
   }
 
-  show(`  장소 ${places.length}곳 확인, 없어진 곳 ${gone}곳, 못 물은 곳 ${missed}곳\n`)
+  show(`  없어진 곳 ${gone}곳, 못 물은 곳 ${missed}곳\n`)
 }
 
 const { count, located } = db

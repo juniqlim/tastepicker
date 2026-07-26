@@ -28,6 +28,27 @@ test('다시 열면 없어진 표시를 거둔다', () => {
   assert.deepEqual(closedPlaces(db), new Set())
 })
 
+test('오래된 글의 가게부터 확인한다', () => {
+  const db = openDb(':memory:')
+  // 네이버 글 번호는 시간이 갈수록 커진다. 날짜를 따로 담지 않아 이걸로 나이를 본다.
+  savePick(db, 픽('111', 'https://blog.naver.com/aaa/224000000000'))
+  savePick(db, 픽('222', 'https://blog.naver.com/aaa/221000000000'))
+  savePick(db, 픽('333', 'https://blog.naver.com/bbb/222000000000'))
+
+  // 옛 글의 가게일수록 이미 없어졌을 확률이 높다. 열 배 차이가 난다.
+  assert.deepEqual(placesToCheck(db, 10), ['222', '333', '111'])
+})
+
+test('같은 가게는 가장 오래된 글로 줄을 선다', () => {
+  const db = openDb(':memory:')
+  savePick(db, 픽('111', 'https://blog.naver.com/aaa/224000000000'))
+  savePick(db, 픽('111', 'https://blog.naver.com/bbb/220000000000'))
+  savePick(db, 픽('222', 'https://blog.naver.com/aaa/222000000000'))
+
+  // 옛날에 한 번이라도 다녀간 집이면 그만큼 오래된 집이다.
+  assert.deepEqual(placesToCheck(db, 10), ['111', '222'])
+})
+
 test('아직 안 본 가게부터 확인한다', () => {
   const db = openDb(':memory:')
   savePick(db, 픽('111', 'a'))
