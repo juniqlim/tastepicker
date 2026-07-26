@@ -69,26 +69,15 @@ test('다 봤으면 오래 안 본 가게부터 확인한다', () => {
   assert.deepEqual(placesToCheck(db, 10), ['222', '111'])
 })
 
-test('없어진 곳은 뒤로 미룬다', () => {
-  const db = openDb(':memory:')
-  savePick(db, 픽('111', 'a'))
-  savePick(db, 픽('222', 'b'))
-  saveClosed(db, '111', true, '2026-07-01')
-  saveClosed(db, '222', false, '2026-07-02')
-
-  // 111 을 더 오래 전에 봤지만 이미 없어진 집이다. 되살아나는 일은 드물다.
-  assert.deepEqual(placesToCheck(db, 10), ['222', '111'])
-})
-
-test('없어진 곳도 한참 지나면 다시 본다', () => {
+test('없어진 곳은 다시 묻지 않는다', () => {
   const db = openDb(':memory:')
   savePick(db, 픽('111', 'a'))
   savePick(db, 픽('222', 'b'))
   saveClosed(db, '111', true, '2026-05-01')
   saveClosed(db, '222', false, '2026-07-02')
 
-  // 두 달이 지났으면 다시 묻는다. 영영 안 보면 되살아난 집을 놓친다.
-  assert.deepEqual(placesToCheck(db, 10), ['111', '222'])
+  // 문 닫은 집은 다시 열리지 않는다. 아무리 오래 전에 봤어도 물을 것이 없다.
+  assert.deepEqual(placesToCheck(db, 10), ['222'])
 })
 
 test('하루에 볼 만큼만 준다', () => {

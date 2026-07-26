@@ -101,21 +101,16 @@ export function closedPlaces(db) {
  */
 const AGE = "CAST(substr(pick.link, length(rtrim(pick.link, '0123456789')) + 1) AS INTEGER)"
 
-/**
- * 없어진 곳은 한 달을 더 기다린 셈 치고 줄을 세운다. 되살아나는 일은 드물다.
- * 날짜를 미래로 적어 미루지 않는다. 그러면 묻지도 않고 물었다고 적는 것이 된다.
- * 아예 빼지도 않는다. 영영 안 보면 되살아난 집을 놓친다.
- */
-const TURN = "CASE WHEN place.closed = 1 THEN date(place.checked, '+30 days') ELSE place.checked END"
-
 export function placesToCheck(db, limit) {
   return db
     .prepare(
       `SELECT pick.place_id AS id, MIN(${AGE}) AS oldest FROM pick
        LEFT JOIN place ON place.place_id = pick.place_id
        WHERE pick.place_id GLOB '[0-9]*' AND NOT pick.place_id GLOB '*[^0-9]*'
+       -- 한 번 문 닫은 집은 다시 열리지 않는다. 물어봐야 같은 답이라 아예 뺀다.
+       AND (place.closed IS NULL OR place.closed = 0)
        GROUP BY pick.place_id
-       ORDER BY place.checked IS NOT NULL, ${TURN}, oldest
+       ORDER BY place.checked IS NOT NULL, place.checked, oldest
        LIMIT ?`,
     )
     .all(limit)
