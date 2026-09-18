@@ -45,6 +45,7 @@ const html = `<!doctype html>
   header { position:sticky; top:0; background:#fff; border-bottom:1px solid #e9ecef;
            padding:12px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap }
   header a.home { color:#212529; font-weight:700; text-decoration:none }
+  header a.juniq { color:#868e96; font-weight:400; font-size:13px }
   select, input, #theme { font:inherit; padding:4px 6px; border:1px solid #dee2e6;
                           border-radius:4px; background:#fff; cursor:pointer }
   main { margin:0 auto; padding:0 16px 40px }
@@ -83,6 +84,7 @@ const html = `<!doctype html>
     body, header { background:#191a1c; color:#e9ecef }
     header { border-color:#343a40 }
     header a.home { color:#e9ecef }
+    header a.juniq { color:#868e96 }
     select, input, nav button, #theme { background:#212529; color:#e9ecef; border-color:#495057 }
     nav button.on { background:#e9ecef; color:#212529 }
     .spot, .tile .spot { border-color:#2b3035 }
@@ -91,6 +93,7 @@ const html = `<!doctype html>
   `)}
 </style>
 <header>
+  <a class="home juniq" href="https://juniq.im/">← juniq</a>
   <a class="home" href="/">tastepicker</a>
   <select id="region"><option value="">지역 전체</option>${options}</select>
   <select id="picker"><option value="">픽커 전체</option>${PICKERS.filter((picker) => picker.read)

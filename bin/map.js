@@ -217,7 +217,8 @@ const html = `<!doctype html>
         <option value="naver">네이버 지도</option>
       </select>
     </div>` : ''}
-    <div id="who"><a href="/list" style="color:#1971c2">목록으로 →</a></div>
+    <div id="who"><a href="/list" style="color:#1971c2">목록으로 →</a>
+      <a href="https://juniq.im/" style="color:#868e96;margin-left:8px">← juniq</a></div>
   </div>
 </div>
 <div id="list">
