@@ -3,9 +3,7 @@ import { request } from './request.js'
 
 /** 네이버 블로그 RSS를 받아 글 목록으로 읽는다. 최근 50글까지만 실린다. */
 export async function fetchPosts(pickerId) {
-  const response = await request(`https://rss.blog.naver.com/${pickerId}.xml`)
-
-  return parseRss(await response.text())
+  return parseRss(await request(`https://rss.blog.naver.com/${pickerId}.xml`))
 }
 
 const PER_PAGE = 30
@@ -14,12 +12,12 @@ const PER_PAGE = 30
 const readJson = (text) => JSON.parse(text.replace(/\\'/g, "'"))
 
 async function fetchListPage(blogId, page) {
-  const response = await request(
+  const text = await request(
     `https://blog.naver.com/PostTitleListAsync.naver` +
       `?blogId=${blogId}&viewdate=&currentPage=${page}&categoryNo=&parentCategoryNo=&countPerPage=${PER_PAGE}`,
   )
 
-  const { totalCount, postList } = readJson(await response.text())
+  const { totalCount, postList } = readJson(text)
   return {
     total: Number(totalCount),
     posts: postList.map((post) => ({
@@ -49,9 +47,5 @@ export async function fetchAllPosts(blogId, onPage = () => {}) {
 /** 글 본문을 받는다. 목록 페이지는 껍데기라 본문 주소로 따로 받아야 한다. */
 export async function fetchPost(link) {
   const [, blogId, logNo] = link.match(/blog\.naver\.com\/(\w+)\/(\d+)/)
-  const response = await request(
-    `https://blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`,
-  )
-
-  return response.text()
+  return request(`https://blog.naver.com/PostView.naver?blogId=${blogId}&logNo=${logNo}`)
 }

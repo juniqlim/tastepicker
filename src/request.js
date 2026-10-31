@@ -4,6 +4,7 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
  * 남의 서버를 두드리는 일이라 천천히 부르고, 막히면 물러섰다 다시 부른다.
  * 없는 글이나 잘못된 요청은 다시 불러도 소용없으니 바로 알린다.
  * 수천 글을 잇달아 받다 보면 연결이 끊기기도 한다. 그것도 물러섰다 다시 부른다.
+ * 본문을 받는 도중에도 끊긴다. 그래서 본문까지 다 받아서 돌려준다.
  */
 export async function request(url, { wait = 300, tries = 4, backoff = 2000 } = {}) {
   let last = new Error(`${url}: 429 계속 막힌다`)
@@ -13,7 +14,7 @@ export async function request(url, { wait = 300, tries = 4, backoff = 2000 } = {
 
     try {
       const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
-      if (response.ok) return response
+      if (response.ok) return await response.text()
       if (response.status !== 429 && response.status < 500) {
         throw new Error(`${url}: ${response.status}`)
       }
