@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { PICKERS } from '../src/pickers.js'
 import { toSpots, byWeight, toRegions, regionOptions } from '../src/spots.js'
 import { themeButton, darkStyle, themeScript } from '../src/theme.js'
+import { analyticsTag } from '../src/analytics.js'
 import { openDb, allPicks, closedPlaces } from '../src/db.js'
 
 const db = openDb(join(import.meta.dirname, '../data/picks.db'))
@@ -37,6 +38,7 @@ const options = regionOptions(toRegions(toSpots(picks).filter((spot) => !gone.ha
 
 const html = `<!doctype html>
 <meta charset="utf-8">
+${analyticsTag}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tastepicker — 목록</title>
 <style>

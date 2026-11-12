@@ -5,6 +5,7 @@ import { PICKERS } from '../src/pickers.js'
 import { toSpots, byWeight } from '../src/spots.js'
 import { pickerColors } from '../src/colors.js'
 import { themeButton, darkStyle, themeScript } from '../src/theme.js'
+import { analyticsTag } from '../src/analytics.js'
 import { openDb, allPicks, closedPlaces } from '../src/db.js'
 
 try {
@@ -117,6 +118,7 @@ const goneRow = counts.gone
 
 const html = `<!doctype html>
 <meta charset="utf-8">
+${analyticsTag}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tastepicker</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
