@@ -8,8 +8,17 @@ export async function fetchPosts(pickerId) {
 
 const PER_PAGE = 30
 
-/** 목록 API는 작은따옴표를 잘못 이스케이프해서 보낸다. */
-const readJson = (text) => JSON.parse(text.replace(/\\'/g, "'"))
+/**
+ * 목록 API는 작은따옴표를 잘못 이스케이프해서 보낸다.
+ * 블로그가 닫히면 200 으로 안내문(HTML)이 온다. 어느 블로그인지 알린다.
+ */
+function readList(blogId, text) {
+  try {
+    return JSON.parse(text.replace(/\\'/g, "'"))
+  } catch {
+    throw new Error(`${blogId}: 글 목록이 오지 않는다. 블로그가 닫혔거나 주소가 바뀌었다`)
+  }
+}
 
 async function fetchListPage(blogId, page) {
   const text = await request(
@@ -17,7 +26,7 @@ async function fetchListPage(blogId, page) {
       `?blogId=${blogId}&viewdate=&currentPage=${page}&categoryNo=&parentCategoryNo=&countPerPage=${PER_PAGE}`,
   )
 
-  const { totalCount, postList } = readJson(text)
+  const { totalCount, postList } = readList(blogId, text)
   return {
     total: Number(totalCount),
     posts: postList.map((post) => ({

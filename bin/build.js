@@ -48,9 +48,17 @@ const targets = PICKERS.filter(
 )
 
 for (const picker of targets) {
-  const posts = await fetchAllPosts(picker.id, (read, total) =>
-    show(`${picker.name} 목록 ${read}/${total}`),
-  )
+  // 픽커 하나가 블로그를 닫아도 나머지 픽커는 모은다. 받아 둔 픽은 그대로 둔다.
+  // 실패는 경고로 드러난다.
+  let posts
+  try {
+    posts = await fetchAllPosts(picker.id, (read, total) =>
+      show(`${picker.name} 목록 ${read}/${total}`),
+    )
+  } catch (failed) {
+    console.log(`\n::warning::${picker.name} 을 건너뛴다. ${failed.message}`)
+    continue
+  }
 
   const picks = collect(picker, posts)
   show(`${picker.name} 글 ${posts.length}개 → 픽 ${picks.length}개\n`)
