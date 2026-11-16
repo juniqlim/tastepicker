@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { toSpots, byWeight, byVisits, byName, regionOptions, inRegion } from '../src/spots.js'
+import { toSpots, byWeight, byVisits, byName, byLatest, regionOptions, inRegion } from '../src/spots.js'
 
 const 픽 = (over) => ({
   picker: 'thddbcjf', name: '억떡볶이', note: '맛있다', rating: null, level: null,
@@ -132,4 +132,18 @@ test('지역이 시도면 그 아래를 다 고른다', () => {
   assert.ok(!inRegion({ region: '서울 마포구' }, '서울 중구'))
   assert.ok(!inRegion({ region: '경기 안양시' }, '서울'))
   assert.ok(inRegion({ region: '서울 마포구' }, ''))
+})
+
+test('새 글이 올라온 집이 먼저다. 글 번호가 클수록 새 글이다', () => {
+  const 옛집 = { picks: [{ picker: 'a', link: 'https://blog.naver.com/a/100' }] }
+  const 새집 = { picks: [{ picker: 'a', link: 'https://blog.naver.com/a/50' }, { picker: 'b', link: 'https://blog.naver.com/b/300' }] }
+
+  assert.deepEqual([옛집, 새집].sort(byLatest()), [새집, 옛집])
+})
+
+test('픽커를 골랐으면 그 픽커의 글만 견준다', () => {
+  const 옛집 = { picks: [{ picker: 'a', link: 'https://blog.naver.com/a/100' }] }
+  const 새집 = { picks: [{ picker: 'a', link: 'https://blog.naver.com/a/50' }, { picker: 'b', link: 'https://blog.naver.com/b/300' }] }
+
+  assert.deepEqual([새집, 옛집].sort(byLatest('a')), [옛집, 새집])
 })

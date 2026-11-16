@@ -87,6 +87,19 @@ export function byName(one, other) {
   return one.name.localeCompare(other.name, 'ko')
 }
 
+/**
+ * 새 글이 올라온 집이 먼저다. 글 날짜를 담지 않아 네이버 글 번호로 본다.
+ * 픽커를 골랐으면 그 픽커의 글만 견준다. 남의 새 글로 앞에 서면 안 된다.
+ * 목록 화면에 그대로 심으므로 밖의 것을 쓰지 않는다.
+ */
+export function byLatest(picker) {
+  const latest = (spot) => Math.max(...spot.picks
+    .filter((pick) => !picker || pick.picker === picker)
+    .map((pick) => Number(pick.link.split('/').pop())))
+
+  return (one, other) => latest(other) - latest(one)
+}
+
 /** 시도로 묶은 지역 목록. 묶음도, 묶음 안도 가게가 많은 곳이 먼저다. */
 export function toRegions(spots) {
   const counted = new Map()

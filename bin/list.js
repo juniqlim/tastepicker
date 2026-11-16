@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { PICKERS } from '../src/pickers.js'
-import { toSpots, byWeight, toRegions, regionOptions } from '../src/spots.js'
+import { toSpots, byWeight, byLatest, toRegions, regionOptions } from '../src/spots.js'
 import { themeButton, darkStyle, themeScript } from '../src/theme.js'
 import { analyticsTag } from '../src/analytics.js'
 import { openDb, allPicks, closedPlaces } from '../src/db.js'
@@ -104,6 +104,7 @@ ${analyticsTag}
   <input id="find" type="search" placeholder="가게 이름" size="12">
   <select id="sort">
     <option value="weight">픽커 겹친 순</option>
+    <option value="latest">최신 글 순</option>
     <option value="visits">다녀간 횟수 순</option>
     <option value="name">가나다 순</option>
   </select>
@@ -140,6 +141,8 @@ const SORTS = {
   name: (one, other) => one.name.localeCompare(other.name, 'ko'),
 }
 
+${byLatest}
+
 function shown() {
   const region = $('region').value
   const picker = $('picker').value
@@ -155,7 +158,8 @@ function shown() {
     (!picker || spot.picks.some(pick => pick.picker === picker)) &&
     (!word || spot.name.toLowerCase().includes(word)))
 
-  const order = SORTS[$('sort').value]
+  const sort = $('sort').value
+  const order = sort === 'latest' ? byLatest(picker) : SORTS[sort]
   return order ? found.sort(order) : found
 }
 
