@@ -26,6 +26,7 @@ test('정직한 청년 - 지역과 가게명과 한줄평을 나눈다', () => {
     level: null,
     levelBy: null,
     link: 'https://blog.naver.com/thddbcjf/224355010343',
+    posted: null,
   })
 })
 
@@ -54,6 +55,7 @@ test('RockHer - 지역과 가게명과 등급을 나눈다', () => {
     level: 4,
     levelBy: '픽커',
     link: 'https://blog.naver.com/fascinoya/224354139472',
+    posted: null,
   })
 })
 
@@ -429,4 +431,13 @@ test('새 픽커들은 등급을 안 매기니 비워둔다', () => {
     assert.equal(pick.level, null)
     assert.equal(pick.levelBy, null)
   }
+})
+
+test('글 날짜를 픽에 옮긴다', () => {
+  const picker = PICKERS.find((one) => one.id === 'thddbcjf')
+  const [pick] = collect(picker, [
+    { title: '안양 호계동 장수옥-뽀얀 걸로', link: 'https://blog.naver.com/thddbcjf/1', posted: '2026-11-05' },
+  ])
+
+  assert.equal(pick.posted, '2026-11-05')
 })

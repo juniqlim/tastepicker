@@ -318,6 +318,6 @@ function splitRegion(head) {
 export function collect(picker, posts) {
   return posts.flatMap((post) => {
     const pick = picker.read(post)
-    return pick ? { picker: picker.id, ...pick, link: post.link } : []
+    return pick ? { picker: picker.id, ...pick, link: post.link, posted: post.posted ?? null } : []
   })
 }

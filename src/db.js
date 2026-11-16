@@ -9,6 +9,7 @@ const COLUMNS = `
   id         TEXT PRIMARY KEY,
   link       TEXT,
   visited    TEXT,
+  posted     TEXT,
   picker     TEXT NOT NULL,
   region     TEXT,
   name       TEXT NOT NULL,
@@ -96,7 +97,7 @@ export function closedPlaces(db) {
  * 안 본 곳 사이에서는 옛 글의 가게부터 본다. 그런 집일수록 이미 없어졌다.
  * 가장 오래된 다섯 중 둘이 없어졌는데, 가장 최근 다섯 중에는 하나도 안 된다.
  *
- * 글 날짜를 담지 않아 나이는 네이버 글 번호로 본다. 시간이 갈수록 커지고 픽커끼리도 견줄 수 있다.
+ * 닫힌 블로그의 글은 날짜가 비어 있어 나이는 네이버 글 번호로 본다. 시간이 갈수록 커지고 픽커끼리도 견줄 수 있다.
  * 같은 가게에 글이 여럿이면 가장 오래된 것으로 줄을 선다. 옛날에 다녀간 집이면 그만큼 오래된 집이다.
  */
 const AGE = "CAST(substr(pick.link, length(rtrim(pick.link, '0123456789')) + 1) AS INTEGER)"
@@ -134,6 +135,7 @@ export function savePick(db, pick) {
     id: pick.id ?? pick.link,
     link: pick.link ?? null,
     visited: pick.visited ?? null,
+    posted: pick.posted ?? null,
     picker: pick.picker,
     region: pick.region ?? null,
     name: pick.name,
@@ -201,6 +203,7 @@ export function allPicks(db) {
     level: row.level,
     levelBy: row.level_by,
     visited: row.visited,
+    posted: row.posted,
     link: row.link,
     sponsored: row.sponsored === null ? null : Boolean(row.sponsored),
     place: row.lat === null ? null : {

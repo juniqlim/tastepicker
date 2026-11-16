@@ -29,6 +29,7 @@ const spots = toSpots(picks)
       rating: pick.rating,
       note: pick.note,
       link: pick.link,
+      posted: pick.posted ?? undefined,
       sponsored: pick.sponsored,
     })),
   }))
@@ -192,7 +193,9 @@ const row = spot => '<div class="spot"><h2>' + escape(spot.name) +
     // 대가를 받고 쓴 글은 밝힌다. 지도에서 걸러 볼 수 있는 것을 여기서 감출 이유가 없다.
     (pick.sponsored ? ' <b class="paid">협찬</b>' : '') +
     ' ' + escape(pick.note) +
-    ' <a href="' + pick.link + '" target="_blank" rel="noopener">원문</a></li>').join('') +
+    ' <a href="' + pick.link + '" target="_blank" rel="noopener">원문' +
+    // 언제 쓴 글인지 밝힌다. 오 년 전 글과 지난주 글은 무게가 다르다.
+    (pick.posted ? ' ' + pick.posted : '') + '</a></li>').join('') +
   '</ol></div>'
 
 // 페이지가 많아도 버튼은 몇 개만 둔다. 지금 쪽 둘레만 보이면 넘어가는 데 지장이 없다.

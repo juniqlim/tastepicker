@@ -29,7 +29,7 @@ test('픽을 넣고 그대로 꺼낸다', () => {
 
   // 본문을 아직 안 살펴서 대가 여부는 비어 있다.
   assert.deepEqual(allPicks(db), [
-    { ...억떡볶이, id: 억떡볶이.link, visited: null, sponsored: null },
+    { ...억떡볶이, id: 억떡볶이.link, visited: null, posted: null, sponsored: null },
   ])
 })
 
@@ -162,4 +162,12 @@ test('아직 안 살펴본 글은 비워 둔다', () => {
 
   // 대가가 아니라고 본 것과 안 살펴본 것은 다르다.
   assert.equal(allPicks(db)[0].sponsored, null)
+})
+
+test('글 날짜를 담는다', () => {
+  const db = openDb(':memory:')
+
+  savePick(db, { ...억떡볶이, posted: '2026-11-05' })
+
+  assert.equal(allPicks(db)[0].posted, '2026-11-05')
 })

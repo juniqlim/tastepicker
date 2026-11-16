@@ -20,6 +20,21 @@ function readList(blogId, text) {
   }
 }
 
+/**
+ * 목록이 주는 글 날짜. '2026. 11. 5.' 로 오고, 하루가 안 된 글은 '3시간 전' 으로 온다.
+ * 한국 날짜로 옮긴다. 모르는 표기는 짐작하지 않고 비운다.
+ */
+export function postedOn(addDate = '', now = new Date()) {
+  const date = addDate.match(/^(\d+)\. (\d+)\. (\d+)\.$/)
+  if (date) return `${date[1]}-${date[2].padStart(2, '0')}-${date[3].padStart(2, '0')}`
+
+  const ago = addDate.match(/^(\d+)(시간|분) 전$/)
+  if (!ago) return null
+
+  const past = ago[1] * (ago[2] === '시간' ? 3_600_000 : 60_000)
+  return new Date(now - past + 9 * 3_600_000).toISOString().slice(0, 10)
+}
+
 async function fetchListPage(blogId, page) {
   const text = await request(
     `https://blog.naver.com/PostTitleListAsync.naver` +
@@ -34,6 +49,7 @@ async function fetchListPage(blogId, page) {
       link: `https://blog.naver.com/${blogId}/${post.logNo}`,
       // 하위 카테고리로 잘게 나눈 픽커가 있어 묶음인 부모 번호를 쓴다.
       categoryNo: post.parentCategoryNo,
+      posted: postedOn(post.addDate),
     })),
   }
 }

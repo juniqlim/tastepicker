@@ -39,4 +39,6 @@ jobs:
           git add data/picks.db data/picks.sha
           git diff --cached --quiet -- data/picks.sha && echo '바뀐 것 없음' && exit 0
           git commit -m "오늘 것을 모은다 ($(date -u -d '9 hours' +%Y-%m-%d))"
+          # 한 시간 반을 도는 사이 코드가 올라오면 그 위에 얹는다. 안 그러면 오늘 것을 버린다.
+          git pull --rebase
           git push
